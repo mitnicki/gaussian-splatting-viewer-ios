@@ -1,5 +1,7 @@
-# XcodeGen project spec for the Gaussian Splatting Viewer iOS PoC (M1).
+# XcodeGen project spec for the Gaussian Splatting Viewer iOS app.
 # Generate the .xcodeproj on a Mac (or in CI) with:  xcodegen generate
+# M1: PoC scaffold (MetalSplatter + .spz load, CI build)
+# M2: Nextcloud WebDAV browser + on-device cache
 name: GaussianSplattingViewer
 options:
   bundleIdPrefix: cloud.dkroeker
@@ -36,8 +38,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Splat Viewer
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         UILaunchScreen:
           UIColorName: ""
         UISupportedInterfaceOrientations:
@@ -49,8 +51,14 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          NSExceptionDomains:
+            dkroeker.de:
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "2"

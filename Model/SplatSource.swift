@@ -4,6 +4,7 @@
 
 import Foundation
 
-struct SplatSource: Hashable {
+struct SplatSource: Identifiable, Hashable {
     let url: URL
+    var id: String { url.absoluteString }
 }

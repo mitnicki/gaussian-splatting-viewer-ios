@@ -25,7 +25,11 @@ compression, all splats + SH3 preserved) loads at full fidelity, 60 FPS.
 
 ```
 Nextcloud CT134  ←(WebDAV, M2)→  iOS App
-                                  ├─ SwiftUI UI (file picker → M2: WebDAV browser)
+                                  ├─ SwiftUI UI
+                                  │   ├─ TabView: Local | Nextcloud | Settings
+                                  │   ├─ LocalFilePickerView (M1: .ply/.splat/.spz from Files app)
+                                  │   ├─ WebDAVBrowseView (M2: folder navigation, download+cache)
+                                  │   └─ SettingsView (M2: Nextcloud server/credentials, Keychain)
                                   ├─ SplatIO: AutodetectSceneReader (.ply/.splat/.spz)
                                   └─ MetalSplatter: SplatRenderer (Metal compute shaders)
 ```
@@ -33,6 +37,12 @@ Nextcloud CT134  ←(WebDAV, M2)→  iOS App
 The app depends on **MetalSplatter** and **SplatIO** via Swift Package Manager
 (resolved from the upstream GitHub repo). The rendering path is adapted from
 MetalSplatter's MIT-licensed SampleApp, simplified to splat-file loading.
+
+**M2 additions:**
+- `WebDAVClient.swift` — Nextcloud WebDAV PROPFIND/GET client (URLSession, no third-party deps)
+- `SplatCacheManager.swift` — LRU on-device cache (2 GB max, Caches directory)
+- `WebDAVBrowseView.swift` — SwiftUI folder browser with download progress
+- `SettingsView.swift` — Nextcloud server config with Keychain storage
 
 ## Project structure
 
@@ -107,9 +117,20 @@ open GaussianSplattingViewer.xcodeproj
 
 | Phase | Status | Scope |
 |---|---|---|
-| **M1: PoC** | ▶ scaffold ready | MetalSplatter + `.spz` load + render, CI build |
-| **M2: WebDAV** | ⏳ | Nextcloud file browser, download + on-device cache |
+| **M1: PoC** | ✅ scaffold ready | MetalSplatter + `.spz` load + render, CI build |
+| **M2: WebDAV** | ▶ code complete, untested | Nextcloud file browser, download + on-device cache |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
+
+## M2 status
+
+Code is complete and committed. Needs CI build verification (requires GitHub repo).
+What M2 adds:
+
+1. **WebDAVClient** — PROPFIND to list directories, GET to download files. Uses URLSession + Basic auth with Nextcloud app password. No third-party dependencies.
+2. **SplatCacheManager** — Downloads are cached in the app's Caches directory. LRU eviction at 2 GB max. Cache hits skip re-download.
+3. **WebDAVBrowseView** — SwiftUI folder browser. Tap a .spz/.ply/.splat file to download (with progress bar) and render. Folders are navigable.
+4. **SettingsView** — Configure Nextcloud server URL, username, and app password. Password stored in iOS Keychain. "Test Connection" button validates credentials.
+5. **ContentView** — Now a TabView with Local / Nextcloud / Settings tabs.
 
 ## What's needed to proceed past M1
 
