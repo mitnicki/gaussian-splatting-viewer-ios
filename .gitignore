@@ -1,0 +1,19 @@
+# XcodeGen-generated project (regenerate with `xcodegen generate`)
+GaussianSplattingViewer.xcodeproj/
+*.xcodeproj/
+Info.plist
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+
+# macOS / Xcode noise
+.DS_Store
+*.swp
+*~
+
+# Build artifacts
+build/
+*.ipa
+*.app.dSYM.zip

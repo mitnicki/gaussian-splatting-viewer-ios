@@ -1,0 +1,46 @@
+name: iOS Build
+
+# M1 PoC CI: generates the Xcode project with XcodeGen on a macOS runner and
+# builds the app for the iOS Simulator. No code signing required (simulator build).
+# macOS minutes are free for public repos — this is the hybrid dev workflow:
+# code authored on Linux, built/validated in the cloud, no Mac hardware needed.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-simulator:
+    name: Build for iOS Simulator
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild \
+            -project GaussianSplattingViewer.xcodeproj \
+            -scheme GaussianSplattingViewer \
+            -resolvePackageDependencies
+
+      - name: Build (iOS Simulator, no signing)
+        run: |
+          xcodebuild \
+            -project GaussianSplattingViewer.xcodeproj \
+            -scheme GaussianSplattingViewer \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
