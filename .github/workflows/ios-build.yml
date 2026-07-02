@@ -1,6 +1,6 @@
 name: iOS Build
 
-# M1 PoC CI: generates the Xcode project with XcodeGen on a macOS runner and
+# CI: generates the Xcode project with XcodeGen on a macOS runner and
 # builds the app for the iOS Simulator. No code signing required (simulator build).
 # macOS minutes are free for public repos — this is the hybrid dev workflow:
 # code authored on Linux, built/validated in the cloud, no Mac hardware needed.
@@ -44,3 +44,44 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  # M3: TestFlight upload. Only runs when Apple signing secrets are configured
+  # as repository secrets. Until then, this job is skipped automatically.
+  testflight:
+    name: Upload to TestFlight
+    runs-on: macos-15
+    needs: build-simulator
+    if: ${{ secrets.APPLE_APP_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install Fastlane
+        run: brew install fastlane
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Configure fastlane Appfile
+        run: |
+          cat > fastlane/Appfile <<EOF
+          app_identifier("${{ secrets.APPLE_APP_ID }}")
+          apple_id("${{ secrets.APPLE_ID }}")
+          team_id("${{ secrets.APPLE_TEAM_ID }}")
+          itc_team_id("${{ secrets.APPLE_ITC_TEAM_ID }}")
+          EOF
+
+      - name: Setup code signing
+        run: fastlane match appstore
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+
+      - name: Build and upload to TestFlight
+        run: fastlane beta
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
