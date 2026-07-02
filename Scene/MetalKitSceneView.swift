@@ -33,7 +33,6 @@ struct MetalKitSceneView: UIViewRepresentable {
             context.coordinator.renderer = renderer
             metalKitView.delegate = renderer
 
-            // Set up gesture handler
             let handler = GestureHandler(renderer: renderer)
             handler.bind(view: metalKitView)
             context.coordinator.gestureHandler = handler
@@ -74,23 +73,19 @@ struct MetalKitSceneView: UIViewRepresentable {
     // MARK: - Gesture setup
 
     private func addGestures(to view: MTKView, handler: GestureHandler) {
-        // Pinch to zoom
         let pinch = UIPinchGestureRecognizer(target: handler, action: #selector(handler.handlePinch(_:)))
         view.addGestureRecognizer(pinch)
 
-        // One-finger pan to orbit/rotate the splat
         let orbit = UIPanGestureRecognizer(target: handler, action: #selector(handler.handleOrbit(_:)))
         orbit.minimumNumberOfTouches = 1
         orbit.maximumNumberOfTouches = 1
         view.addGestureRecognizer(orbit)
 
-        // Two-finger pan to move the camera
         let pan = UIPanGestureRecognizer(target: handler, action: #selector(handler.handlePan(_:)))
         pan.minimumNumberOfTouches = 2
         pan.maximumNumberOfTouches = 2
         view.addGestureRecognizer(pan)
 
-        // Double tap to reset view
         let doubleTap = UITapGestureRecognizer(target: handler, action: #selector(handler.handleDoubleTap(_:)))
         doubleTap.numberOfTapsRequired = 2
         view.addGestureRecognizer(doubleTap)
@@ -99,6 +94,7 @@ struct MetalKitSceneView: UIViewRepresentable {
 
 // MARK: - Gesture handler
 
+@MainActor
 final class GestureHandler: NSObject {
     private let renderer: MetalKitSceneRenderer
     private weak var view: MTKView?
@@ -122,10 +118,10 @@ final class GestureHandler: NSObject {
     @objc func handleOrbit(_ gesture: UIPanGestureRecognizer) {
         guard let view else { return }
         if gesture.state == .changed {
-            let translation = gesture.translation(in: view)
+            let point = gesture.translation(in: view)
             let sensitivity: Float = 0.01
-            let yaw = Float(translation.width) * sensitivity
-            let pitch = Float(translation.height) * sensitivity
+            let yaw = Float(point.x) * sensitivity
+            let pitch = Float(point.y) * sensitivity
             let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
             let pitchQuat = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
             renderer.manualRotation = yawQuat * renderer.manualRotation * pitchQuat
@@ -136,8 +132,10 @@ final class GestureHandler: NSObject {
     @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
         guard let view else { return }
         if gesture.state == .changed {
-            let translation = gesture.translation(in: view)
-            let velocity = gesture.velocity(in: view)
+            let point = gesture.translation(in: view)
+            let vel = gesture.velocity(in: view)
+            let translation = CGSize(width: point.x, height: point.y)
+            let velocity = CGSize(width: vel.x, height: vel.y)
             renderer.handlePan(translation: translation, velocity)
             gesture.setTranslation(.zero, in: view)
         }
