@@ -99,7 +99,7 @@ struct MetalKitSceneView: UIViewRepresentable {
 
 // MARK: - Gesture handler
 
-private final class GestureHandler: NSObject {
+final class GestureHandler: NSObject {
     private let renderer: MetalKitSceneRenderer
     private weak var view: MTKView?
 
