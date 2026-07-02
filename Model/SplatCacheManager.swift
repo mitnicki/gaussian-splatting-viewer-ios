@@ -14,7 +14,12 @@ actor SplatCacheManager {
     private let maxCacheSize: Int64 = 2 * 1024 * 1024 * 1024  // 2 GB
 
     init() {
-        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        guard let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            // Fallback to temporary directory if Caches is unavailable
+            self.cacheURL = FileManager.default.temporaryDirectory.appendingPathComponent("SplatCache", isDirectory: true)
+            try? FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
+            return
+        }
         self.cacheURL = cachesDir.appendingPathComponent("SplatCache", isDirectory: true)
 
         if !FileManager.default.fileExists(atPath: cacheURL.path) {

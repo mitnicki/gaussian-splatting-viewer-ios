@@ -123,9 +123,9 @@ struct LocalFilePickerView: View {
             .fileImporter(
                 isPresented: $isPickingFile,
                 allowedContentTypes: [
-                    UTType(filenameExtension: "ply")!,
-                    UTType(filenameExtension: "splat")!,
-                    UTType(filenameExtension: "spz")!,
+                    UTType(filenameExtension: "ply") ?? .data,
+                    UTType(filenameExtension: "splat") ?? .data,
+                    UTType(filenameExtension: "spz") ?? .data,
                 ]
             ) { result in
                 isPickingFile = false
