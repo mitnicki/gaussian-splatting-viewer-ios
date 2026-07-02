@@ -123,6 +123,7 @@ open GaussianSplattingViewer.xcodeproj
 | **M2.4: Code Review** | ✅ code complete | Force-unwrap safety, NaN guard, credential caching, defer cleanup |
 | **M2.5: Safety** | ✅ code complete | UTType fallback, SplatCacheManager init guard |
 | **M2.6: Robustness** | ✅ code complete | Failed-load retry fix, PROPFIND self-entry filtering |
+| **M2.7: UX Fix** | ✅ code complete | Loading state tracks actual Metal load completion (no 0.3s sleep hack) |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
 
 ## M2 status
