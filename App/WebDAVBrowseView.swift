@@ -45,7 +45,7 @@ struct WebDAVBrowseView: View {
         }
         .sheet(item: $selectedSplat) { source in
             NavigationStack {
-                MetalKitSceneView(url: source.url)
+                SplatRendererView(url: source.url)
                     .navigationTitle(source.url.lastPathComponent)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -224,6 +224,12 @@ struct WebDAVBrowseView: View {
         // Download
         downloadProgress = DownloadProgress(path: entry.path, fraction: 0, completed: false)
 
+        // Throttle progress updates to avoid excessive SwiftUI redraws.
+        // URLSessionDownloadDelegate can fire didWriteData hundreds of times
+        // per second for large files. Without throttling, each callback spawns
+        // a MainActor Task that triggers a view body re-evaluation.
+        var lastUpdate: ContinuousClock.Instant = .now
+
         do {
             // Download to temp file
             let tempURL = FileManager.default.temporaryDirectory
@@ -231,10 +237,15 @@ struct WebDAVBrowseView: View {
 
             try await client.downloadFile(relativePath: entry.path,
                                            destinationURL: tempURL) { fraction in
-                Task { @MainActor in
-                    downloadProgress = DownloadProgress(path: entry.path,
-                                                         fraction: fraction,
-                                                         completed: false)
+                let now = ContinuousClock.now
+                // Update at most every 100ms, or when complete
+                if fraction >= 1.0 || now - lastUpdate >= .milliseconds(100) {
+                    lastUpdate = now
+                    Task { @MainActor in
+                        downloadProgress = DownloadProgress(path: entry.path,
+                                                             fraction: fraction,
+                                                             completed: false)
+                    }
                 }
             }
 

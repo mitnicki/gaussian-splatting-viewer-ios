@@ -67,9 +67,9 @@ struct SettingsView: View {
         .onAppear {
             appPassword = KeychainHelper.shared.read(account: username) ?? ""
         }
-        .onChange(of: appPassword) {
+        .onChange(of: appPassword) { _, newValue in
             if !username.isEmpty {
-                KeychainHelper.shared.save(account: username, password: appPassword)
+                KeychainHelper.shared.save(account: username, password: newValue)
             }
         }
     }

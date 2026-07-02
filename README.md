@@ -119,6 +119,7 @@ open GaussianSplattingViewer.xcodeproj
 |---|---|---|
 | **M1: PoC** | ✅ scaffold ready | MetalSplatter + `.spz` load + render, CI build |
 | **M2: WebDAV** | ✅ code complete, bug-fixed | Nextcloud file browser, download + on-device cache |
+| **M2.3: Polish** | ✅ code complete | Compile fixes, loading/error UX, progress throttling |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
 
 ## M2 status
@@ -126,6 +127,18 @@ open GaussianSplattingViewer.xcodeproj
 Code is complete and bug-fixed. Needs CI build verification (requires GitHub repo).
 
 ### Bug fixes in this revision (2026-07-02)
+
+#### M2.3 — Compile fixes + UX polish
+
+1. **Critical: MetalKitSceneRenderer init — force-unwrap compile error** — `init?(_:)` is failable, but `makeUIView` assigned the result directly to a non-optional property and passed it to `addGestures(to:renderer:)` which takes a non-optional `MetalKitSceneRenderer`. This is a compile error in strict Swift 6 mode. Replaced force-unwrap (`metalKitView.device!`) with proper `guard let` and wrapped the renderer creation in `if let`.
+
+2. **New: Loading/error overlay (SplatRendererView.swift)** — When opening a splat file, the user previously saw a blank black screen for 2-5 seconds while MetalSplatter parsed the file. Now shows an animated loading indicator, and an error overlay if the file is missing/empty/unreadable.
+
+3. **Download progress throttling** — `URLSessionDownloadDelegate.didWriteData` can fire hundreds of times per second. Each callback spawned a `Task { @MainActor }` that triggered a SwiftUI body re-evaluation. Added a 100ms `ContinuousClock` throttle so the progress bar updates at most 10×/second.
+
+4. **Deprecated `onChange(of:)` fix** — iOS 18 deprecates the zero-parameter `onChange` closure. Updated to the two-parameter form `onChange(of:) { _, newValue in }`.
+
+#### M2.2 — Real download progress + resource leak fix
 
 1. **Critical: WebDAV download OOM fix** — `downloadFile()` was reading the response
    byte-by-byte via `URLSession.bytes` and accumulating the entire file in a `Data`

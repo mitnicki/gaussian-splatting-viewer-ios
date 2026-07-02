@@ -136,7 +136,7 @@ struct LocalFilePickerView: View {
                 }
             }
             .navigationDestination(for: SplatSource.self) { source in
-                MetalKitSceneView(url: source.url)
+                SplatRendererView(url: source.url)
                     .navigationTitle(source.url.lastPathComponent)
                     .navigationBarTitleDisplayMode(.inline)
             }

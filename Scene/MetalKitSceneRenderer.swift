@@ -56,8 +56,9 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     var panOffset: SIMD2<Float> = .zero  // screen-space pan
 
     init?(_ metalKitView: MTKView) {
-        self.device = metalKitView.device!
-        guard let queue = self.device.makeCommandQueue() else { return nil }
+        guard let device = metalKitView.device else { return nil }
+        guard let queue = device.makeCommandQueue() else { return nil }
+        self.device = device
         self.commandQueue = queue
         self.metalKitView = metalKitView
         metalKitView.colorPixelFormat = MTLPixelFormat.bgra8Unorm_srgb

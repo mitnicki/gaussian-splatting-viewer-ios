@@ -25,18 +25,19 @@ struct MetalKitSceneView: UIViewRepresentable {
             metalKitView.device = metalDevice
         }
 
-        let renderer = MetalKitSceneRenderer(metalKitView)
-        context.coordinator.renderer = renderer
-        metalKitView.delegate = renderer
+        if let renderer = MetalKitSceneRenderer(metalKitView) {
+            context.coordinator.renderer = renderer
+            metalKitView.delegate = renderer
 
-        // Add gesture recognizers
-        addGestures(to: metalKitView, renderer: renderer)
+            // Add gesture recognizers
+            addGestures(to: metalKitView, renderer: renderer)
 
-        Task {
-            do {
-                try await renderer?.load(url)
-            } catch {
-                print("Error loading model: \(error.localizedDescription)")
+            Task {
+                do {
+                    try await renderer.load(url)
+                } catch {
+                    print("Error loading model: \(error.localizedDescription)")
+                }
             }
         }
 
