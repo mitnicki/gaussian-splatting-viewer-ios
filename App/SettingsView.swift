@@ -110,7 +110,7 @@ struct SettingsView: View {
 
 // MARK: - Keychain helper
 
-final class KeychainHelper {
+final class KeychainHelper: @unchecked Sendable {
     static let shared = KeychainHelper()
     private let service = "cloud.dkroeker.GaussianSplattingViewer"
 
