@@ -1,65 +1,68 @@
-# Fastlane Fastfile — build and deployment lanes for the Gaussian Splatting Viewer.
-# M3: TestFlight/App Store distribution.
+# Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
+# No 2FA needed — the API key authenticates everything.
 #
-# Prerequisites:
-#   1. Apple Developer Account (~99 EUR/yr)
-#   2. xcodegen installed:  brew install xcodegen
-#   3. fastlane installed:   brew install fastlane
-#   4. Fill in fastlane/Appfile with your Apple ID + team ID
-#   5. Run:  fastlane match development  (sets up code signing)
-#
-# Usage:
-#   fastlane beta    # Build and upload to TestFlight
-#   fastlane release # Build and upload to App Store
+# Required GitHub secrets:
+#   ASC_API_KEY_ID       — Key ID from App Store Connect
+#   ASC_ISSUER_ID        — Issuer ID from App Store Connect
+#   ASC_API_KEY_CONTENT  — Contents of the .p8 file (base64 or raw)
+#   MATCH_PASSWORD       — Password for the match cert repo
+#   MATCH_GIT_URL        — Private git repo for match certificates
 
 default_platform(:ios)
 
 platform :ios do
+  def api_key
+    app_store_connect_api_key(
+      key_id: ENV["ASC_API_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_API_KEY_CONTENT"],
+      duration: 1200,
+      in_house: false
+    )
+  end
+
   desc "Generate the Xcode project from project.yml"
   private_lane :generate_project do
     sh("xcodegen generate")
   end
 
-  desc "Build the app and upload to TestFlight"
-  desc "Requires: fastlane match development, fastlane match appstore"
+  desc "Build and upload to TestFlight (CI uses this)"
   lane :beta do
     generate_project
+
+    # match fetch/creates distribution cert + provisioning profile
+    match(
+      type: "appstore",
+      api_key: api_key,
+      git_url: ENV["MATCH_GIT_URL"],
+      readonly: true,
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer"
+    )
 
     build_app(
       project: "GaussianSplattingViewer.xcodeproj",
       scheme: "GaussianSplattingViewer",
       configuration: "Release",
       export_method: "app-store",
-      include_bitcode: false
+      include_bitcode: false,
+      xcargs: "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID', '')}"
     )
 
     upload_to_testflight(
+      api_key: api_key,
       skip_waiting_for_build_processing: true
     )
   end
 
-  desc "Build the app and upload to App Store Connect"
-  desc "Requires: fastlane match appstore"
-  lane :release do
+  desc "Initial setup — run once locally or in CI to create certs"
+  lane :setup_signing do
     generate_project
-
-    build_app(
-      project: "GaussianSplattingViewer.xcodeproj",
-      scheme: "GaussianSplattingViewer",
-      configuration: "Release",
-      export_method: "app-store",
-      include_bitcode: false
+    match(
+      type: "appstore",
+      api_key: api_key,
+      git_url: ENV["MATCH_GIT_URL"],
+      readonly: false,
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer"
     )
-
-    upload_to_app_store(
-      skip_screenshots: true,
-      skip_metadata: true
-    )
-  end
-
-  desc "Generate localized screenshots for all device sizes"
-  lane :screenshots do
-    generate_project
-    capture_screenshots
   end
 end
