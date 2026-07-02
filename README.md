@@ -121,6 +121,8 @@ open GaussianSplattingViewer.xcodeproj
 | **M2: WebDAV** | ✅ code complete, bug-fixed | Nextcloud file browser, download + on-device cache |
 | **M2.3: Polish** | ✅ code complete | Compile fixes, loading/error UX, progress throttling |
 | **M2.4: Code Review** | ✅ code complete | Force-unwrap safety, NaN guard, credential caching, defer cleanup |
+| **M2.5: Safety** | ✅ code complete | UTType fallback, SplatCacheManager init guard |
+| **M2.6: Robustness** | ✅ code complete | Failed-load retry fix, PROPFIND self-entry filtering |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
 
 ## M2 status
