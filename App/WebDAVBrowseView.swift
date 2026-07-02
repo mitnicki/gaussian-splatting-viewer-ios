@@ -297,7 +297,7 @@ struct DownloadProgress: Equatable {
 }
 
 /// Box wrapper to allow mutation of a captured variable in concurrent code.
-private final class LastUpdateBox {
+private final class LastUpdateBox: @unchecked Sendable {
     var value: ContinuousClock.Instant = .now
 }
 
