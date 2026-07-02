@@ -51,7 +51,7 @@ jobs:
     name: Upload to TestFlight
     runs-on: macos-15
     needs: build-simulator
-    if: ${{ secrets.APPLE_APP_ID != '' }}
+    if: ${{ vars.ENABLE_TESTFLIGHT == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
