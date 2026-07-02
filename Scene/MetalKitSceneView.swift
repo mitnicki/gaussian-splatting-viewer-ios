@@ -15,6 +15,7 @@ struct MetalKitSceneView: UIViewRepresentable {
 
     final class Coordinator {
         var renderer: MetalKitSceneRenderer?
+        var gestureHandler: GestureHandler?
     }
 
     func makeCoordinator() -> Coordinator {
@@ -32,8 +33,11 @@ struct MetalKitSceneView: UIViewRepresentable {
             context.coordinator.renderer = renderer
             metalKitView.delegate = renderer
 
-            // Add gesture recognizers
-            addGestures(to: metalKitView, renderer: renderer)
+            // Set up gesture handler
+            let handler = GestureHandler(renderer: renderer)
+            handler.bind(view: metalKitView)
+            context.coordinator.gestureHandler = handler
+            addGestures(to: metalKitView, handler: handler)
 
             Task { @MainActor in
                 do {
@@ -44,8 +48,6 @@ struct MetalKitSceneView: UIViewRepresentable {
                 }
             }
         } else {
-            // Metal device unavailable — report immediately so the UI
-            // shows an error instead of spinning the loading overlay forever.
             onLoadComplete?(NSError(
                 domain: "MetalKitSceneView",
                 code: 1,
@@ -57,9 +59,6 @@ struct MetalKitSceneView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: MTKView, context: UIViewRepresentableContext<MetalKitSceneView>) {
-        // Only reload if the URL actually changed. SwiftUI calls updateUIView
-        // on every state change in the parent view — without this guard we'd
-        // tear down and reload the splat on every redraw.
         guard let renderer = context.coordinator.renderer else { return }
         guard renderer.loadedURL != url else { return }
         Task { @MainActor in
@@ -74,55 +73,78 @@ struct MetalKitSceneView: UIViewRepresentable {
 
     // MARK: - Gesture setup
 
-    private func addGestures(to view: MTKView, renderer: MetalKitSceneRenderer) {
+    private func addGestures(to view: MTKView, handler: GestureHandler) {
         // Pinch to zoom
-        let pinch = UIPinchGestureRecognizer { gesture in
-            if gesture.state == .changed {
-                renderer.handlePinch(scale: gesture.scale)
-                gesture.scale = 1.0  // reset for incremental updates
-            }
-        }
+        let pinch = UIPinchGestureRecognizer(target: handler, action: #selector(handler.handlePinch(_:)))
         view.addGestureRecognizer(pinch)
 
-        // One-finger pan to orbit/rotate the splat.
-        // Two-finger pan moves the camera (pan offset) — see below.
-        let orbit = UIPanGestureRecognizer { gesture in
-            if gesture.state == .changed {
-                let translation = gesture.translation(in: view)
-                let sensitivity: Float = 0.01
-                // Horizontal drag → rotate around Y axis
-                // Vertical drag → rotate around X axis
-                let yaw = Float(translation.width) * sensitivity
-                let pitch = Float(translation.height) * sensitivity
-                let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
-                let pitchQuat = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
-                renderer.manualRotation = yawQuat * renderer.manualRotation * pitchQuat
-                gesture.setTranslation(.zero, in: view)
-            }
-        }
+        // One-finger pan to orbit/rotate the splat
+        let orbit = UIPanGestureRecognizer(target: handler, action: #selector(handler.handleOrbit(_:)))
         orbit.minimumNumberOfTouches = 1
         orbit.maximumNumberOfTouches = 1
         view.addGestureRecognizer(orbit)
 
         // Two-finger pan to move the camera
-        let pan = UIPanGestureRecognizer { gesture in
-            if gesture.state == .changed {
-                let translation = gesture.translation(in: view)
-                let velocity = gesture.velocity(in: view)
-                renderer.handlePan(translation: translation, velocity)
-                gesture.setTranslation(.zero, in: view)
-            }
-        }
+        let pan = UIPanGestureRecognizer(target: handler, action: #selector(handler.handlePan(_:)))
         pan.minimumNumberOfTouches = 2
         pan.maximumNumberOfTouches = 2
         view.addGestureRecognizer(pan)
 
         // Double tap to reset view
-        let doubleTap = UITapGestureRecognizer { _ in
-            renderer.resetView()
-        }
+        let doubleTap = UITapGestureRecognizer(target: handler, action: #selector(handler.handleDoubleTap(_:)))
         doubleTap.numberOfTapsRequired = 2
         view.addGestureRecognizer(doubleTap)
+    }
+}
+
+// MARK: - Gesture handler
+
+private final class GestureHandler: NSObject {
+    private let renderer: MetalKitSceneRenderer
+    private weak var view: MTKView?
+
+    init(renderer: MetalKitSceneRenderer) {
+        self.renderer = renderer
+        super.init()
+    }
+
+    func bind(view: MTKView) {
+        self.view = view
+    }
+
+    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        if gesture.state == .changed {
+            renderer.handlePinch(scale: gesture.scale)
+            gesture.scale = 1.0
+        }
+    }
+
+    @objc func handleOrbit(_ gesture: UIPanGestureRecognizer) {
+        guard let view else { return }
+        if gesture.state == .changed {
+            let translation = gesture.translation(in: view)
+            let sensitivity: Float = 0.01
+            let yaw = Float(translation.width) * sensitivity
+            let pitch = Float(translation.height) * sensitivity
+            let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
+            let pitchQuat = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+            renderer.manualRotation = yawQuat * renderer.manualRotation * pitchQuat
+            gesture.setTranslation(.zero, in: view)
+        }
+    }
+
+    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let view else { return }
+        if gesture.state == .changed {
+            let translation = gesture.translation(in: view)
+            let velocity = gesture.velocity(in: view)
+            renderer.handlePan(translation: translation, velocity)
+            gesture.setTranslation(.zero, in: view)
+        }
+    }
+
+    @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        renderer.resetView()
     }
 }
 
