@@ -76,7 +76,7 @@ struct MetalKitSceneView: UIViewRepresentable {
 
     private func addGestures(to view: MTKView, renderer: MetalKitSceneRenderer) {
         // Pinch to zoom
-        let pinch = UIPinchGestureRecognizer(target: nil) { gesture in
+        let pinch = UIPinchGestureRecognizer { gesture in
             if gesture.state == .changed {
                 renderer.handlePinch(scale: gesture.scale)
                 gesture.scale = 1.0  // reset for incremental updates
@@ -86,7 +86,7 @@ struct MetalKitSceneView: UIViewRepresentable {
 
         // One-finger pan to orbit/rotate the splat.
         // Two-finger pan moves the camera (pan offset) — see below.
-        let orbit = UIPanGestureRecognizer(target: nil) { gesture in
+        let orbit = UIPanGestureRecognizer { gesture in
             if gesture.state == .changed {
                 let translation = gesture.translation(in: view)
                 let sensitivity: Float = 0.01
@@ -105,7 +105,7 @@ struct MetalKitSceneView: UIViewRepresentable {
         view.addGestureRecognizer(orbit)
 
         // Two-finger pan to move the camera
-        let pan = UIPanGestureRecognizer(target: nil) { gesture in
+        let pan = UIPanGestureRecognizer { gesture in
             if gesture.state == .changed {
                 let translation = gesture.translation(in: view)
                 let velocity = gesture.velocity(in: view)
@@ -118,7 +118,7 @@ struct MetalKitSceneView: UIViewRepresentable {
         view.addGestureRecognizer(pan)
 
         // Double tap to reset view
-        let doubleTap = UITapGestureRecognizer(target: nil) { _ in
+        let doubleTap = UITapGestureRecognizer { _ in
             renderer.resetView()
         }
         doubleTap.numberOfTapsRequired = 2

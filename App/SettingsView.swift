@@ -20,16 +20,16 @@ struct SettingsView: View {
         Form {
             Section("Nextcloud Server") {
                 TextField("Server URL", text: $serverURLString,
-                           placeholder: Text("https://files.dkroeker.de"))
+                           prompt: Text("https://files.dkroeker.de"))
                     .keyboardType(.URL)
                     .autocapitalization(.none)
                     .textContentType(.URL)
                 TextField("Username", text: $username,
-                           placeholder: Text("dennis"))
+                           prompt: Text("dennis"))
                     .autocapitalization(.none)
                     .textContentType(.username)
                 SecureField("App Password", text: $appPassword,
-                             placeholder: Text("Nextcloud app password"))
+                             prompt: Text("Nextcloud app password"))
                     .textContentType(.password)
             }
 

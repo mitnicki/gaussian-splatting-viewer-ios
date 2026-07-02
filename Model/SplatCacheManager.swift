@@ -80,7 +80,7 @@ actor SplatCacheManager {
         for case let url as URL in enumerator {
             let resources = try? url.resourceValues(forKeys: resourceKeys)
             if resources?.isRegularFile == true {
-                total += resources?.totalFileAllocatedSize ?? 0
+                total += Int64(resources?.totalFileAllocatedSize ?? 0)
             }
         }
         return total
