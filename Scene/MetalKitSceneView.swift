@@ -49,7 +49,7 @@ struct MetalKitSceneView: UIViewRepresentable {
         // on every state change in the parent view — without this guard we'd
         // tear down and reload the splat on every redraw.
         guard let renderer = context.coordinator.renderer else { return }
-        guard renderer.url != url else { return }
+        guard renderer.loadedURL != url else { return }
         Task {
             do {
                 try await renderer.load(url)

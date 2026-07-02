@@ -40,7 +40,7 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     let device: MTLDevice
     let commandQueue: MTLCommandQueue
 
-    var url: URL?
+    var loadedURL: URL?
     var modelRenderer: (any ModelRenderer)?
 
     let inFlightSemaphore = DispatchSemaphore(value: Constants.maxSimultaneousRenders)
@@ -69,11 +69,16 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     }
 
     func load(_ url: URL?) async throws {
-        guard url != self.url else { return }
-        self.url = url
+        // Guard against reloading the same URL. We compare against
+        // loadedURL (set only after a successful load), NOT a pre-set
+        // value — so a failed load can be retried with the same URL.
+        guard url != loadedURL else { return }
         modelRenderer = nil
 
-        guard let url else { return }
+        guard let url else {
+            loadedURL = nil
+            return
+        }
 
         let splat = try SplatRenderer(
             device: device,
@@ -88,6 +93,9 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         let chunk = try SplatChunk(device: device, from: points)
         await splat.addChunk(chunk)
         modelRenderer = splat
+        // Only update loadedURL after a successful load — this allows
+        // retrying failed loads with the same URL.
+        loadedURL = url
     }
 
     private var viewport: ModelRendererViewportDescriptor {

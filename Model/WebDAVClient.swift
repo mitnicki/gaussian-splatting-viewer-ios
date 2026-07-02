@@ -185,14 +185,24 @@ actor WebDAVClient {
 
     private func parsePropFind(data: Data, basePath: String) throws -> [WebDAVEntry] {
         let parser = WebDAVPropFindParser()
-        var entries = try parser.parse(data: data)
+        let entries = try parser.parse(data: data)
 
-        // The first entry is the directory itself — filter it out
-        if !entries.isEmpty {
-            entries.removeFirst()
+        // The PROPFIND response includes the directory itself plus its children.
+        // WebDAV spec does not guarantee ordering, so we filter by identifying
+        // the self-entry: its href matches the request path (the directory we
+        // listed), and it's a collection (directory).
+        // The request URL encodes: /remote.php/dav/files/<username>/<basePath>
+        let requestPath = credentials.url(forPath: basePath).path
+
+        return entries.filter { entry in
+            // Keep entries whose href does NOT match the request directory path.
+            // The self-entry's href is the directory we queried.
+            let decodedHref = entry.id.removingPercentEncoding ?? entry.id
+            // Compare ignoring trailing slash differences
+            let normalizedHref = decodedHref.hasSuffix("/") ? String(decodedHref.dropLast()) : decodedHref
+            let normalizedRequest = requestPath.hasSuffix("/") ? String(requestPath.dropLast()) : requestPath
+            return normalizedHref != normalizedRequest
         }
-
-        return entries
     }
 }
 
