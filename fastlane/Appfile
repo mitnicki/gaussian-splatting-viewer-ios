@@ -1,0 +1,21 @@
+# Fastlane Appfile — configuration for the Gaussian Splatting Viewer iOS app.
+# Used by M3 (TestFlight/App Store distribution) once the Apple Developer
+# Account is set up.
+#
+# Fill in the Apple ID and team ID after creating the developer account.
+# Generate the .xcodeproj first:  xcodegen generate
+
+app_identifier("cloud.dkroeker.GaussianSplattingViewer")
+apple_id("TODO_FILL_IN_APPLE_ID")       # Your Apple Developer Account email
+team_id("TODO_FILL_IN_TEAM_ID")         # Your Developer Portal team ID
+itc_team_id("TODO_FILL_IN_ITC_TEAM_ID") # App Store Connect team ID (if different)
+
+# Automatically generate screenshots for all device sizes
+# devices([
+#   "iPhone 16 Pro",
+#   "iPhone 16",
+#   "iPad Pro 12.9"
+# ])
+
+# Languages for screenshots
+# languages(["en-US", "de-DE"])

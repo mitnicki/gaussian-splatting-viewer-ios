@@ -143,13 +143,6 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         panOffset.y -= Float(translation.height) * sensitivity  // flip Y
     }
 
-    func handleRotationGesture(rotation angle: CGFloat, _ velocity: CGFloat) {
-        // Accumulate rotation around Y axis
-        let delta = Float(angle)
-        let q = simd_quatf(angle: delta, axis: SIMD3<Float>(0, 1, 0))
-        manualRotation = q * manualRotation
-    }
-
     func resetView() {
         cameraDistance = 0
         panOffset = .zero

@@ -144,9 +144,19 @@ actor WebDAVClient {
         let url = credentials.url(forPath: relativePath)
         let req = authorizedRequest(url: url, method: "GET")
 
-        // Use downloadTask with temp file — avoids loading entire file into memory.
-        // The 113 MB .spz would OOM if accumulated in a Data buffer.
-        let (tempURL, response) = try await session.download(for: req)
+        // Use a delegate-based download session so we get real progress callbacks
+        // (bytesWritten / totalBytesExpected). The default session.download(for:)
+        // streams to disk (no OOM) but provides NO intermediate progress — a
+        // 113 MB .spz would show 0% for the entire download then jump to 100%.
+        let progressDelegate = DownloadProgressDelegate(progress: progress)
+        let downloadSession = URLSession(
+            configuration: .default,
+            delegate: progressDelegate,
+            delegateQueue: nil
+        )
+        defer { downloadSession.finishTasksAndInvalidate() }
+
+        let (tempURL, response) = try await downloadSession.download(for: req)
 
         guard let http = response as? HTTPURLResponse else {
             throw WebDAVError.parseError
@@ -316,5 +326,33 @@ private final class WebDAVPropFindParser: NSObject, XMLParserDelegate {
         }
 
         currentEntry = entry
+    }
+}
+
+// MARK: - Download Progress Delegate
+
+/// URLSessionDownloadDelegate that reports real download progress via a callback.
+/// Used by WebDAVClient.downloadFile to show incremental progress for large files.
+private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate {
+    let progress: @Sendable (Double) -> Void
+
+    init(progress: @escaping @Sendable (Double) -> Void) {
+        self.progress = progress
+    }
+
+    func urlSession(_ session: URLSession,
+                    downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64,
+                    totalBytesWritten: Int64,
+                    totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let fraction = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        progress(min(max(fraction, 0.0), 1.0))
+    }
+
+    func urlSession(_ session: URLSession,
+                    downloadTask: URLSessionDownloadTask,
+                    didFinishDownloadingTo location: URL) {
+        // The async download(for:) API handles the temp file — nothing to do here.
     }
 }

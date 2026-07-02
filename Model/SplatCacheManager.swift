@@ -34,16 +34,6 @@ actor SplatCacheManager {
         return url
     }
 
-    /// Saves downloaded data to cache and returns the local URL.
-    func cacheFile(data: Data, relativePath: String) throws -> URL {
-        let url = cacheURL(forRelativePath: relativePath)
-        let dir = url.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try data.write(to: url)
-        try evictIfNeeded()
-        return url
-    }
-
     /// Saves a file from a source URL (move/copy) and returns the cache URL.
     func cacheFile(from sourceURL: URL, relativePath: String) throws -> URL {
         let url = cacheURL(forRelativePath: relativePath)

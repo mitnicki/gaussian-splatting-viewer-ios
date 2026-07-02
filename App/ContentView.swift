@@ -115,9 +115,22 @@ struct LocalFilePickerView: View {
                 isPickingFile = false
                 switch result {
                 case .success(let url):
-                    // Keep the security-scoped resource alive while the renderer uses it.
-                    _ = url.startAccessingSecurityScopedResource()
-                    navigationPath.append(SplatSource(url: url))
+                    // Copy security-scoped file into app's tmp dir so it stays
+                    // accessible without permanently holding the scope open.
+                    // The original approach (startAccessingSecurityScopedResource
+                    // without a matching stopAccessing) leaked file descriptors.
+                    let tmpURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+                    do {
+                        _ = url.startAccessingSecurityScopedResource()
+                        try FileManager.default.copyItem(at: url, to: tmpURL)
+                        url.stopAccessingSecurityScopedResource()
+                        navigationPath.append(SplatSource(url: tmpURL))
+                    } catch {
+                        url.stopAccessingSecurityScopedResource()
+                        // Fallback: use original URL (may work for some providers)
+                        navigationPath.append(SplatSource(url: url))
+                    }
                 case .failure:
                     break
                 }
