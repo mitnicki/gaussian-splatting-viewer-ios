@@ -1,4 +1,4 @@
-# Gaussian Splatting Viewer (iOS) — M2.8 (Code Complete)
+# Gaussian Splatting Viewer (iOS) — M2.10f (CI Verified)
 
 Native iOS app that renders Gaussian Splatting scenes (`.ply` / `.splat` / `.spz`)
 using [MetalSplatter](https://github.com/scier/MetalSplatter) and Apple's Metal
@@ -6,9 +6,10 @@ framework. Built for the kroeker homelab to view `rc390_alte_muehle` and other
 splats on iPhone/iPad where iOS Safari's 384 MB WebGL cap makes the web viewer
  unusable (see DKR-97 / DKR-179).
 
-> **Status:** M2.8 (Code Complete). M1 PoC + M2 WebDAV integration + 8 rounds of
-> code review fixes. All code is production-ready. M3 (TestFlight distribution)
-> is blocked on Apple Developer Account + GitHub repo access.
+> **Status:** M2.10f (CI Verified). M1 PoC + M2 WebDAV integration + 10 rounds of
+> code review fixes. All code is production-ready and compiles cleanly on GitHub
+> Actions (macOS-15 / Xcode 16.4). M3 (TestFlight distribution) is blocked on
+> Apple Developer Account activation (enrollment pending).
 
 ---
 
@@ -80,36 +81,19 @@ This repo is designed for the **Linux-author → macOS-CI → TestFlight** loop:
 
 ---
 
-## Getting the first CI build
+## CI status
 
-You need a GitHub repository. Two options:
+GitHub Actions builds the app on every push to `master`. The latest run (commit
+`26b2c05`, M2.10f) completed successfully:
 
-### Option A — Dennis creates the repo, agent pushes
-1. Create a **public** GitHub repo (e.g. `HenkDz/gaussian-splatting-viewer-ios`).
-2. Grant the agent a fine-grained PAT with `Contents: read/write` on that repo,
-   set as the `GITHUB_TOKEN` / repo secret.
-3. The agent pushes this scaffold → CI builds automatically.
+- **Runner:** macOS-15 (Xcode 16.4, iOS Simulator 18.5)
+- **Build time:** ~1m50s
+- **Status:** GREEN
+- **URL:** https://github.com/mitnicki/gaussian-splatting-viewer-ios/actions
 
-### Option B — Push the bundle yourself
-1. Create a public repo.
-2. Unpack the provided artifact tarball and push:
-   ```sh
-   tar xzf gaussian-splatting-viewer-ios-m1.tar.gz
-   cd gaussian-splatting-viewer-ios
-   git init && git add -A && git commit -m "M1 PoC scaffold"
-   git branch -M main
-   git remote add origin git@github.com:<you>/gaussian-splatting-viewer-ios.git
-   git push -u origin main
-   ```
-3. GitHub Actions builds on push. Watch the **Actions** tab for a green check.
-
-### Local build (if you have a Mac)
-```sh
-brew install xcodegen
-xcodegen generate
-open GaussianSplattingViewer.xcodeproj
-# In Xcode: pick an iPhone 16 Pro simulator, Cmd+R
-```
+> Note: The repo is currently private. macOS runner minutes are free for public
+> repos but billed at 10x for private repos. Consider making the repo public
+> (the app is MIT-licensed) to avoid CI costs.
 
 ---
 
@@ -125,11 +109,13 @@ open GaussianSplattingViewer.xcodeproj
 | **M2.6: Robustness** | ✅ code complete | Failed-load retry fix, PROPFIND self-entry filtering |
 | **M2.7: UX Fix** | ✅ code complete | Loading state tracks actual Metal load completion (no 0.3s sleep hack) |
 | **M2.8: Review** | ✅ code complete | Metal-unavailable error fallback, one-finger orbit rotation gesture |
-| **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
+| **M2.9-M2.10f: Swift 6** | ✅ CI verified | Swift 6 strict concurrency, actor isolation, Sendable conformance, gesture handler fixes |
+| **M3: Distribution** | ⏳ blocked | TestFlight (needs Apple Developer Account — enrollment pending) |
 
 ## M2 status
 
-Code is complete and bug-fixed. Needs CI build verification (requires GitHub repo).
+Code is complete, bug-fixed, and **CI-verified**. GitHub Actions builds successfully
+on macOS-15 (Xcode 16.4, iOS Simulator 18.5). Commit 26b2c05, 21 commits total.
 
 ### Bug fixes in this revision (2026-07-02)
 
@@ -180,9 +166,9 @@ Code is complete and bug-fixed. Needs CI build verification (requires GitHub rep
 
 ## What's needed to proceed past M1
 
-1. **GitHub repo** (public) — to run CI and iterate on builds.
+1. **GitHub repo** ✅ — https://github.com/mitnicki/gaussian-splatting-viewer-ios (private)
 2. **Apple Developer Account** (~€99/yr) — only for M3 (TestFlight distribution).
-   M1 and M2 work without it (simulator + local file / WebDAV).
+   Enrollment is pending. M1 and M2 work without it (simulator + local file / WebDAV).
 
 ## License
 
