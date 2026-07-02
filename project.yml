@@ -29,6 +29,7 @@ targets:
       - path: Scene
       - path: Model
       - path: Util
+      - path: Assets.xcassets
     dependencies:
       - package: MetalSplatter
         product: MetalSplatter
