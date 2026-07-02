@@ -157,6 +157,7 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         let sensitivity: Float = 0.01
         panOffset.x += Float(translation.width) * sensitivity
         panOffset.y -= Float(translation.height) * sensitivity  // flip Y
+        _ = velocity  // reserved for momentum/inertia in a future iteration
     }
 
     func resetView() {

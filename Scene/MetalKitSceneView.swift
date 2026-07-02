@@ -43,6 +43,14 @@ struct MetalKitSceneView: UIViewRepresentable {
                     onLoadComplete?(error)
                 }
             }
+        } else {
+            // Metal device unavailable — report immediately so the UI
+            // shows an error instead of spinning the loading overlay forever.
+            onLoadComplete?(NSError(
+                domain: "MetalKitSceneView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Metal is not available on this device"]
+            ))
         }
 
         return metalKitView
@@ -76,7 +84,27 @@ struct MetalKitSceneView: UIViewRepresentable {
         }
         view.addGestureRecognizer(pinch)
 
-        // Pan to move the camera
+        // One-finger pan to orbit/rotate the splat.
+        // Two-finger pan moves the camera (pan offset) — see below.
+        let orbit = UIPanGestureRecognizer(target: nil) { gesture in
+            if gesture.state == .changed {
+                let translation = gesture.translation(in: view)
+                let sensitivity: Float = 0.01
+                // Horizontal drag → rotate around Y axis
+                // Vertical drag → rotate around X axis
+                let yaw = Float(translation.width) * sensitivity
+                let pitch = Float(translation.height) * sensitivity
+                let yawQuat = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
+                let pitchQuat = simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+                renderer.manualRotation = yawQuat * renderer.manualRotation * pitchQuat
+                gesture.setTranslation(.zero, in: view)
+            }
+        }
+        orbit.minimumNumberOfTouches = 1
+        orbit.maximumNumberOfTouches = 1
+        view.addGestureRecognizer(orbit)
+
+        // Two-finger pan to move the camera
         let pan = UIPanGestureRecognizer(target: nil) { gesture in
             if gesture.state == .changed {
                 let translation = gesture.translation(in: view)
@@ -85,6 +113,7 @@ struct MetalKitSceneView: UIViewRepresentable {
                 gesture.setTranslation(.zero, in: view)
             }
         }
+        pan.minimumNumberOfTouches = 2
         pan.maximumNumberOfTouches = 2
         view.addGestureRecognizer(pan)
 
