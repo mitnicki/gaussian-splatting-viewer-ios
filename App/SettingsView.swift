@@ -70,7 +70,14 @@ struct SettingsView: View {
         .onChange(of: appPassword) { _, newValue in
             if !username.isEmpty {
                 KeychainHelper.shared.save(account: username, password: newValue)
+                NotificationCenter.default.post(name: .nextcloudCredentialsChanged, object: nil)
             }
+        }
+        .onChange(of: serverURLString) { _, _ in
+            NotificationCenter.default.post(name: .nextcloudCredentialsChanged, object: nil)
+        }
+        .onChange(of: username) { _, _ in
+            NotificationCenter.default.post(name: .nextcloudCredentialsChanged, object: nil)
         }
     }
 

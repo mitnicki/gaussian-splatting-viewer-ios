@@ -33,7 +33,8 @@ func matrix4x4_from_quaternion(_ q: simd_quatf) -> matrix_float4x4 {
 @MainActor
 final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     private static let log =
-        Logger(subsystem: Bundle.main.bundleIdentifier!, category: "MetalKitSceneRenderer")
+        Logger(subsystem: Bundle.main.bundleIdentifier ?? "GaussianSplattingViewer",
+               category: "MetalKitSceneRenderer")
 
     let metalKitView: MTKView
     let device: MTLDevice
@@ -94,9 +95,15 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         // Clamp zoom so the scene doesn't disappear or invert
         let zoom = max(min(cameraDistance, 15.0), -7.0)
 
+        // Guard against zero drawableSize (initial frame before layout) —
+        // dividing by zero produces NaN in the projection matrix, which
+        // renders garbage or crashes the GPU pipeline.
+        let safeWidth = max(Float(drawableSize.width), 1.0)
+        let safeHeight = max(Float(drawableSize.height), 1.0)
+
         let projectionMatrix = matrix_perspective_right_hand(
             fovyRadians: effectiveFovy,
-            aspectRatio: Float(drawableSize.width / drawableSize.height),
+            aspectRatio: safeWidth / safeHeight,
             nearZ: 0.1,
             farZ: 100.0
         )

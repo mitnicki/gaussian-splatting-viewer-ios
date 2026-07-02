@@ -120,6 +120,7 @@ open GaussianSplattingViewer.xcodeproj
 | **M1: PoC** | ✅ scaffold ready | MetalSplatter + `.spz` load + render, CI build |
 | **M2: WebDAV** | ✅ code complete, bug-fixed | Nextcloud file browser, download + on-device cache |
 | **M2.3: Polish** | ✅ code complete | Compile fixes, loading/error UX, progress throttling |
+| **M2.4: Code Review** | ✅ code complete | Force-unwrap safety, NaN guard, credential caching, defer cleanup |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
 
 ## M2 status
@@ -127,6 +128,16 @@ open GaussianSplattingViewer.xcodeproj
 Code is complete and bug-fixed. Needs CI build verification (requires GitHub repo).
 
 ### Bug fixes in this revision (2026-07-02)
+
+#### M2.4 — Code review fixes
+
+1. **Force-unwrap safety (MetalKitSceneRenderer)** — `Bundle.main.bundleIdentifier!` would crash in test/preview contexts where the bundle identifier is nil. Replaced with `?? "GaussianSplattingViewer"` fallback.
+
+2. **NaN projection matrix guard** — When `drawableSize` is `.zero` (initial frame before layout), `drawableSize.width / drawableSize.height` produces NaN, corrupting the projection matrix and potentially crashing the GPU pipeline. Added `max(width, 1.0)` / `max(height, 1.0)` guards.
+
+3. **Security-scoped resource cleanup (ContentView)** — The file picker's `startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()` pair was not using `defer`, meaning a throw between start and stop would leak the file descriptor. Replaced with `defer` block for guaranteed cleanup.
+
+4. **Credential caching (ContentView)** — `nextcloudCredentials()` was called inside the `body` computed property, reading UserDefaults + Keychain on every SwiftUI render pass. Moved to `@State` with `.onAppear` + notification-based refresh.
 
 #### M2.3 — Compile fixes + UX polish
 

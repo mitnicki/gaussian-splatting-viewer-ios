@@ -10,6 +10,10 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var selectedTab = 0
+    // Cache credentials so we don't hit UserDefaults + Keychain on every
+    // SwiftUI body re-render. Refreshed on .appear and when SettingsView
+    // posts a .nextcloudCredentialsChanged notification.
+    @State private var cachedCredentials: WebDAVCredentials?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -21,7 +25,7 @@ struct ContentView: View {
                 .tag(0)
 
             // M2: Nextcloud WebDAV browser
-            if let creds = nextcloudCredentials() {
+            if let creds = cachedCredentials {
                 WebDAVBrowseView(credentials: creds)
                     .tabItem {
                         Label("Nextcloud", systemImage: "cloud")
@@ -42,11 +46,17 @@ struct ContentView: View {
                 }
                 .tag(2)
         }
+        .onAppear {
+            cachedCredentials = loadCredentials()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .nextcloudCredentialsChanged)) { _ in
+            cachedCredentials = loadCredentials()
+        }
     }
 
     // MARK: - Credentials
 
-    private func nextcloudCredentials() -> WebDAVCredentials? {
+    private func loadCredentials() -> WebDAVCredentials? {
         let defaults = UserDefaults.standard
         guard let serverStr = defaults.string(forKey: "nextcloud.serverURL"),
               !serverStr.isEmpty,
@@ -63,6 +73,12 @@ struct ContentView: View {
                                   username: username,
                                   appPassword: password)
     }
+}
+
+// MARK: - Credential change notification
+
+extension Notification.Name {
+    static let nextcloudCredentialsChanged = Notification.Name("nextcloudCredentialsChanged")
 }
 
 // MARK: - Local File Picker (M1)
@@ -119,15 +135,19 @@ struct LocalFilePickerView: View {
                     // accessible without permanently holding the scope open.
                     // The original approach (startAccessingSecurityScopedResource
                     // without a matching stopAccessing) leaked file descriptors.
+                    // Using defer guarantees stopAccessing even if copy throws.
                     let tmpURL = FileManager.default.temporaryDirectory
                         .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+                    let didStartAccessing = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if didStartAccessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
                     do {
-                        _ = url.startAccessingSecurityScopedResource()
                         try FileManager.default.copyItem(at: url, to: tmpURL)
-                        url.stopAccessingSecurityScopedResource()
                         navigationPath.append(SplatSource(url: tmpURL))
                     } catch {
-                        url.stopAccessingSecurityScopedResource()
                         // Fallback: use original URL (may work for some providers)
                         navigationPath.append(SplatSource(url: url))
                     }
