@@ -20,8 +20,14 @@ struct SplatRendererView: View {
 
     var body: some View {
         ZStack {
-            MetalKitSceneView(url: url)
-                .ignoresSafeArea()
+            MetalKitSceneView(url: url) { error in
+                if let error {
+                    loadState = .error(error.localizedDescription)
+                } else {
+                    loadState = .ready
+                }
+            }
+            .ignoresSafeArea()
 
             switch loadState {
             case .loading:
@@ -36,42 +42,32 @@ struct SplatRendererView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: loadState)
         .task(id: url) {
-            await checkLoadStatus()
+            // Reset to loading when URL changes
+            loadState = .loading
+
+            // Lightweight pre-check before Metal starts loading.
+            // The actual load completion is handled by the MetalKitSceneView
+            // callback, but we catch obvious file errors early for better UX.
+            guard let url else {
+                loadState = .error("No file URL")
+                return
+            }
+
+            if !FileManager.default.fileExists(atPath: url.path) {
+                loadState = .error("File not found: \(url.lastPathComponent)")
+                return
+            }
+
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                  let size = attrs[.size] as? Int64, size > 0 else {
+                loadState = .error("File is empty or unreadable")
+                return
+            }
+
+            // File looks good — MetalKitSceneView will call onLoadComplete
+            // when the async Metal load finishes. The loading overlay stays
+            // visible until then, covering the full parse duration.
         }
-    }
-
-    // MARK: - Load status
-
-    /// MetalSplatter's SplatRenderer.load is async — we can't easily get
-    /// a callback from inside MetalKitSceneRenderer. Instead, we do a
-    /// lightweight pre-check: verify the file exists and is readable.
-    /// The actual Metal load happens inside MetalKitSceneView; if it fails,
-    /// the MTKView stays black (the renderer's isReadyToRender stays false).
-    /// For the common failure case (file missing / unreadable), we catch it here.
-    private func checkLoadStatus() async {
-        guard let url else {
-            loadState = .error("No file URL")
-            return
-        }
-
-        // Check file exists and is readable
-        if !FileManager.default.fileExists(atPath: url.path) {
-            loadState = .error("File not found: \(url.lastPathComponent)")
-            return
-        }
-
-        // Check file is not empty
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attrs[.size] as? Int64, size > 0 else {
-            loadState = .error("File is empty or unreadable")
-            return
-        }
-
-        // File looks good — show the MetalKit view (it loads asynchronously).
-        // Give a brief loading state, then transition to ready.
-        loadState = .loading
-        try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3s
-        loadState = .ready
     }
 }
 

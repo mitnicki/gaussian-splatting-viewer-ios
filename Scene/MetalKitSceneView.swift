@@ -9,6 +9,9 @@ import MetalKit
 
 struct MetalKitSceneView: UIViewRepresentable {
     let url: URL?
+    /// Called when the async Metal load finishes. `nil` = success,
+    /// non-nil = the error that was thrown. Called on MainActor.
+    var onLoadComplete: (@MainActor (Error?) -> Void)?
 
     final class Coordinator {
         var renderer: MetalKitSceneRenderer?
@@ -32,11 +35,12 @@ struct MetalKitSceneView: UIViewRepresentable {
             // Add gesture recognizers
             addGestures(to: metalKitView, renderer: renderer)
 
-            Task {
+            Task { @MainActor in
                 do {
                     try await renderer.load(url)
+                    onLoadComplete?(nil)
                 } catch {
-                    print("Error loading model: \(error.localizedDescription)")
+                    onLoadComplete?(error)
                 }
             }
         }
@@ -50,11 +54,12 @@ struct MetalKitSceneView: UIViewRepresentable {
         // tear down and reload the splat on every redraw.
         guard let renderer = context.coordinator.renderer else { return }
         guard renderer.loadedURL != url else { return }
-        Task {
+        Task { @MainActor in
             do {
                 try await renderer.load(url)
+                onLoadComplete?(nil)
             } catch {
-                print("Error loading model: \(error.localizedDescription)")
+                onLoadComplete?(error)
             }
         }
     }
