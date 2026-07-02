@@ -14,6 +14,22 @@ import simd
 import SplatIO
 import SwiftUI
 
+/// Identity matrix helper (simd doesn't provide one directly).
+func matrix4x4_identity() -> matrix_float4x4 {
+    return matrix_float4x4(diagonal: SIMD4<Float>(1, 1, 1, 1))
+}
+
+/// Convert a quaternion to a 4×4 rotation matrix.
+func matrix4x4_from_quaternion(_ q: simd_quatf) -> matrix_float4x4 {
+    let x = q.vector.x, y = q.vector.y, z = q.vector.z, w = q.real
+    var m = matrix_float4x4()
+    m.columns.0 = SIMD4<Float>(1 - 2*(y*y + z*z), 2*(x*y + w*z), 2*(x*z - w*y), 0)
+    m.columns.1 = SIMD4<Float>(2*(x*y - w*z), 1 - 2*(x*x + z*z), 2*(y*z + w*x), 0)
+    m.columns.2 = SIMD4<Float>(2*(x*z + w*y), 2*(y*z - w*x), 1 - 2*(x*x + y*y), 0)
+    m.columns.3 = SIMD4<Float>(0, 0, 0, 1)
+    return m
+}
+
 @MainActor
 final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     private static let log =
@@ -31,6 +47,13 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     var lastRotationUpdateTimestamp: Date? = nil
     var rotation: Angle = .zero
     var drawableSize: CGSize = .zero
+
+    // MARK: - User interaction state
+
+    var autoRotate: Bool = true
+    var manualRotation: simd_quatf = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
+    var cameraDistance: Float = 0  // offset from default, zoom in/out
+    var panOffset: SIMD2<Float> = .zero  // screen-space pan
 
     init?(_ metalKitView: MTKView) {
         self.device = metalKitView.device!
@@ -66,16 +89,24 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     }
 
     private var viewport: ModelRendererViewportDescriptor {
+        let effectiveFovy = Float(Constants.fovy.radians)
+        // Clamp zoom so the scene doesn't disappear or invert
+        let zoom = max(min(cameraDistance, 15.0), -7.0)
+
         let projectionMatrix = matrix_perspective_right_hand(
-            fovyRadians: Float(Constants.fovy.radians),
+            fovyRadians: effectiveFovy,
             aspectRatio: Float(drawableSize.width / drawableSize.height),
             nearZ: 0.1,
             farZ: 100.0
         )
 
-        let rotationMatrix = matrix4x4_rotation(radians: Float(rotation.radians),
-                                               axis: Constants.rotationAxis)
-        let translationMatrix = matrix4x4_translation(0.0, 0.0, Constants.modelCenterZ)
+        let autoRotationMatrix = autoRotate
+            ? matrix4x4_rotation(radians: Float(rotation.radians), axis: Constants.rotationAxis)
+            : matrix4x4_identity()
+
+        let manualRotationMatrix = matrix4x4_from_quaternion(manualRotation)
+        let rotationMatrix = manualRotationMatrix * autoRotationMatrix
+        let translationMatrix = matrix4x4_translation(panOffset.x, panOffset.y, Constants.modelCenterZ + zoom)
         // Turn common 3D GS PLY files rightside-up (matches upstream SampleApp default).
         let commonUpCalibration = matrix4x4_rotation(radians: .pi, axis: SIMD3<Float>(0, 0, 1))
 
@@ -92,10 +123,38 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     }
 
     private func updateRotation() {
+        guard autoRotate else { return }
         let now = Date()
         defer { lastRotationUpdateTimestamp = now }
         guard let lastRotationUpdateTimestamp else { return }
         rotation += Constants.rotationPerSecond * now.timeIntervalSince(lastRotationUpdateTimestamp)
+    }
+
+    // MARK: - Gesture handlers
+
+    func handlePinch(scale: CGFloat) {
+        cameraDistance += Float(1.0 - scale) * 2.0
+    }
+
+    func handlePan(translation: CGSize, _ velocity: CGSize) {
+        // Convert screen-space pan to world units
+        let sensitivity: Float = 0.01
+        panOffset.x += Float(translation.width) * sensitivity
+        panOffset.y -= Float(translation.height) * sensitivity  // flip Y
+    }
+
+    func handleRotationGesture(rotation angle: CGFloat, _ velocity: CGFloat) {
+        // Accumulate rotation around Y axis
+        let delta = Float(angle)
+        let q = simd_quatf(angle: delta, axis: SIMD3<Float>(0, 1, 0))
+        manualRotation = q * manualRotation
+    }
+
+    func resetView() {
+        cameraDistance = 0
+        panOffset = .zero
+        manualRotation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
+        rotation = .zero
     }
 
     func draw(in view: MTKView) {

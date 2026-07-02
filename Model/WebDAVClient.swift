@@ -144,7 +144,9 @@ actor WebDAVClient {
         let url = credentials.url(forPath: relativePath)
         let req = authorizedRequest(url: url, method: "GET")
 
-        let (asyncBytes, response) = try await session.bytes(for: req)
+        // Use downloadTask with temp file — avoids loading entire file into memory.
+        // The 113 MB .spz would OOM if accumulated in a Data buffer.
+        let (tempURL, response) = try await session.download(for: req)
 
         guard let http = response as? HTTPURLResponse else {
             throw WebDAVError.parseError
@@ -161,30 +163,11 @@ actor WebDAVClient {
             throw WebDAVError.httpError(http.statusCode)
         }
 
-        let totalBytes = http.expectedContentLength
-        var bytesWritten: Int64 = 0
-        var fileData = Data()
-        fileData.reserveCapacity(totalBytes > 0 ? Int(totalBytes) : 0)
-
-        // Buffer reads
-        var buffer = Data(count: 64 * 1024)
-        for try await byte in asyncBytes {
-            buffer.append(byte)
-            if buffer.count >= 64 * 1024 {
-                fileData.append(buffer)
-                bytesWritten += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-                if totalBytes > 0 {
-                    progress(Double(bytesWritten) / Double(totalBytes))
-                }
-            }
+        // Move the downloaded temp file to the destination
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
         }
-        if !buffer.isEmpty {
-            fileData.append(buffer)
-            bytesWritten += Int64(buffer.count)
-        }
-
-        try fileData.write(to: destinationURL)
+        try FileManager.default.moveItem(at: tempURL, to: destinationURL)
         progress(1.0)
     }
 

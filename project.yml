@@ -38,8 +38,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Splat Viewer
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.3.0"
+        CFBundleVersion: "3"
         UILaunchScreen:
           UIColorName: ""
         UISupportedInterfaceOrientations:
@@ -60,5 +60,5 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
-        MARKETING_VERSION: "0.2.0"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "3"

@@ -118,19 +118,37 @@ open GaussianSplattingViewer.xcodeproj
 | Phase | Status | Scope |
 |---|---|---|
 | **M1: PoC** | ✅ scaffold ready | MetalSplatter + `.spz` load + render, CI build |
-| **M2: WebDAV** | ▶ code complete, untested | Nextcloud file browser, download + on-device cache |
+| **M2: WebDAV** | ✅ code complete, bug-fixed | Nextcloud file browser, download + on-device cache |
 | **M3: Distribution** | ⏳ | TestFlight (needs Apple Developer Account, ~€99/yr) |
 
 ## M2 status
 
-Code is complete and committed. Needs CI build verification (requires GitHub repo).
-What M2 adds:
+Code is complete and bug-fixed. Needs CI build verification (requires GitHub repo).
 
-1. **WebDAVClient** — PROPFIND to list directories, GET to download files. Uses URLSession + Basic auth with Nextcloud app password. No third-party dependencies.
-2. **SplatCacheManager** — Downloads are cached in the app's Caches directory. LRU eviction at 2 GB max. Cache hits skip re-download.
-3. **WebDAVBrowseView** — SwiftUI folder browser. Tap a .spz/.ply/.splat file to download (with progress bar) and render. Folders are navigable.
-4. **SettingsView** — Configure Nextcloud server URL, username, and app password. Password stored in iOS Keychain. "Test Connection" button validates credentials.
-5. **ContentView** — Now a TabView with Local / Nextcloud / Settings tabs.
+### Bug fixes in this revision (2026-07-02)
+
+1. **Critical: WebDAV download OOM fix** — `downloadFile()` was reading the response
+   byte-by-byte via `URLSession.bytes` and accumulating the entire file in a `Data`
+   buffer before writing to disk. A 113 MB `.spz` would peak at ~230 MB RAM (Data
+   buffer + Swift runtime overhead) and crash on devices with < 3 GB free. Replaced
+   with `URLSession.download(for:)` which streams directly to a temp file, then moves
+   it to the cache. Peak memory is now negligible.
+
+2. **MetalKitSceneView reload-on-every-update** — `updateUIView` was calling
+   `renderer.load(url)` on every SwiftUI state change, tearing down and reloading
+   the splat scene unnecessarily. Added a `renderer.url != url` guard so it only
+   reloads when the URL actually changes.
+
+3. **WebDAVBrowseView back button** — Changed "Back" text to a chevron icon,
+   added pull-to-refresh (`refreshable`), and fixed the toolbar button label
+   to use SF Symbols.
+
+### Gesture controls (new)
+
+- **Pinch** to zoom in/out
+- **Pan** (1-2 fingers) to move the camera
+- **Double-tap** to reset the view
+- Auto-rotation is always active; manual rotation is additive
 
 ## What's needed to proceed past M1
 

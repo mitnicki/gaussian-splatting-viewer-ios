@@ -29,13 +29,18 @@ struct WebDAVBrowseView: View {
                 .toolbar {
                     if !navigationPath.isEmpty {
                         ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Back") {
+                            Button {
                                 navigationPath.removeLast()
                                 currentPath = navigationPath.joined(separator: "/")
                                 Task { await loadDirectory() }
+                            } label: {
+                                Image(systemName: "chevron.left")
                             }
                         }
                     }
+                }
+                .refreshable {
+                    await loadDirectory()
                 }
         }
         .sheet(item: $selectedSplat) { source in

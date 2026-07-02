@@ -91,6 +91,14 @@ actor SplatCacheManager {
         return total
     }
 
+    // MARK: - Memory management
+
+    /// Clear cache on memory pressure (called from UIApplication.didReceiveMemoryWarningNotification)
+    func handleMemoryWarning() {
+        try? clearCache()
+        Self.log.notice("Memory warning: cleared splat cache")
+    }
+
     // MARK: - Private
 
     private func cacheURL(forRelativePath path: String) -> URL {
