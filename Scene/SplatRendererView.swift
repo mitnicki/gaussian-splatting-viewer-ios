@@ -12,7 +12,7 @@ struct SplatRendererView: View {
 
     @State private var loadState: LoadState = .loading
 
-    private enum LoadState {
+    private enum LoadState: Equatable {
         case loading
         case ready
         case error(String)

@@ -129,7 +129,7 @@ struct WebDAVBrowseView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: fileIcon(for: entry))
-                    .foregroundStyle(entry.isSplatFile ? .tint : .secondary)
+                    .foregroundStyle(entry.isSplatFile ? Color.accentColor : Color.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
                         .font(.body)
@@ -228,7 +228,7 @@ struct WebDAVBrowseView: View {
         // URLSessionDownloadDelegate can fire didWriteData hundreds of times
         // per second for large files. Without throttling, each callback spawns
         // a MainActor Task that triggers a view body re-evaluation.
-        var lastUpdate: ContinuousClock.Instant = .now
+        let lastUpdate = LastUpdateBox()
 
         do {
             // Download to temp file
@@ -239,8 +239,8 @@ struct WebDAVBrowseView: View {
                                            destinationURL: tempURL) { fraction in
                 let now = ContinuousClock.now
                 // Update at most every 100ms, or when complete
-                if fraction >= 1.0 || now - lastUpdate >= .milliseconds(100) {
-                    lastUpdate = now
+                if fraction >= 1.0 || now - lastUpdate.value >= .milliseconds(100) {
+                    lastUpdate.value = now
                     Task { @MainActor in
                         downloadProgress = DownloadProgress(path: entry.path,
                                                              fraction: fraction,
@@ -294,6 +294,11 @@ struct DownloadProgress: Equatable {
     let path: String
     let fraction: Double
     let completed: Bool
+}
+
+/// Box wrapper to allow mutation of a captured variable in concurrent code.
+private final class LastUpdateBox {
+    var value: ContinuousClock.Instant = .now
 }
 
 #endif // os(iOS)

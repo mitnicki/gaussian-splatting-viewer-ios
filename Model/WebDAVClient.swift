@@ -117,9 +117,10 @@ actor WebDAVClient {
             "Depth": "1",
             "Content-Type": "application/xml; charset=utf-8"
         ])
-        req.httpBody = body.data(using: .utf8)
+        var reqBody = req
+        reqBody.httpBody = body.data(using: .utf8)
 
-        let (data, response) = try await session.data(for: req)
+        let (data, response) = try await session.data(for: reqBody)
 
         guard let http = response as? HTTPURLResponse else {
             throw WebDAVError.parseError
@@ -139,7 +140,7 @@ actor WebDAVClient {
 
     func downloadFile(relativePath: String,
                       destinationURL: URL,
-                      progress: @Sendable (Double) -> Void = { _ in }) async throws {
+                      progress: @Sendable @escaping (Double) -> Void = { _ in }) async throws {
 
         let url = credentials.url(forPath: relativePath)
         let req = authorizedRequest(url: url, method: "GET")
