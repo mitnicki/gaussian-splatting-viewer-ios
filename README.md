@@ -1,4 +1,4 @@
-# Gaussian Splatting Viewer (iOS) — M1 PoC
+# Gaussian Splatting Viewer (iOS) — M2.8 (Code Complete)
 
 Native iOS app that renders Gaussian Splatting scenes (`.ply` / `.splat` / `.spz`)
 using [MetalSplatter](https://github.com/scier/MetalSplatter) and Apple's Metal
@@ -6,9 +6,9 @@ framework. Built for the kroeker homelab to view `rc390_alte_muehle` and other
 splats on iPhone/iPad where iOS Safari's 384 MB WebGL cap makes the web viewer
  unusable (see DKR-97 / DKR-179).
 
-> **Status:** M1 (Proof of Concept). The app loads a local splat file and renders
-> it with Metal. M2 will add a Nextcloud WebDAV browser so splats can be streamed
-> directly from `files.dkroeker.de` without side-loading.
+> **Status:** M2.8 (Code Complete). M1 PoC + M2 WebDAV integration + 8 rounds of
+> code review fixes. All code is production-ready. M3 (TestFlight distribution)
+> is blocked on Apple Developer Account + GitHub repo access.
 
 ---
 
