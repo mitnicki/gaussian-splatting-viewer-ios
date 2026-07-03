@@ -1,9 +1,9 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
 #
-# Two-phase build:
-#   1. Archive without code signing (CODE_SIGNING_ALLOWED=NO)
-#   2. Export with -allowProvisioningUpdates + auth key (creates App Store dist profile)
-#   3. Upload to TestFlight (app record is created by CI step scripts/create_asc_app.py)
+# Build with code signing (automatic via ASC API key):
+#   1. Archive with -allowProvisioningUpdates + auth key (creates dist cert+profile)
+#   2. Export with -allowProvisioningUpdates + auth key
+#   3. Upload to TestFlight
 #
 # Required GitHub secrets (set by Dennis):
 #   APP_STORE_CONNECT_KEY_ID       — Key ID
@@ -63,7 +63,11 @@ platform :ios do
          "-configuration Release " \
          "-destination 'generic/platform=iOS' " \
          "-archivePath #{archive_path} " \
-         "CODE_SIGNING_ALLOWED=NO")
+         "-allowProvisioningUpdates " \
+         "-authenticationKeyPath #{key_path} " \
+         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
+         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
+         "CODE_SIGNING_ALLOWED=YES")
 
       sh("xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
