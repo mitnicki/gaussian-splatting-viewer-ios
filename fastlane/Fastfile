@@ -1,12 +1,12 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
 # No 2FA needed — the API key authenticates everything.
+# No match/cert git repo needed — certs are created on the CI runner directly.
 #
 # Required GitHub secrets:
 #   ASC_API_KEY_ID       — Key ID from App Store Connect
 #   ASC_ISSUER_ID        — Issuer ID from App Store Connect
 #   ASC_API_KEY_CONTENT  — Contents of the .p8 file (base64 or raw)
-#   MATCH_PASSWORD       — Password for the match cert repo
-#   MATCH_GIT_URL        — Private git repo for match certificates
+#   APPLE_TEAM_ID        — Team ID from Apple Developer Portal
 
 default_platform(:ios)
 
@@ -30,12 +30,17 @@ platform :ios do
   lane :beta do
     generate_project
 
-    # match fetch/creates distribution cert + provisioning profile
-    match(
-      type: "appstore",
+    # Create/fetch distribution certificate + provisioning profile directly
+    # (no separate git repo needed — certs live on the ephemeral CI runner)
+    get_certificates(
       api_key: api_key,
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: true,
+      type: "appstore",
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer"
+    )
+
+    get_provisioning_profile(
+      api_key: api_key,
+      type: "appstore",
       app_identifier: "cloud.dkroeker.GaussianSplattingViewer"
     )
 
@@ -51,18 +56,6 @@ platform :ios do
     upload_to_testflight(
       api_key: api_key,
       skip_waiting_for_build_processing: true
-    )
-  end
-
-  desc "Initial setup — run once locally or in CI to create certs"
-  lane :setup_signing do
-    generate_project
-    match(
-      type: "appstore",
-      api_key: api_key,
-      git_url: ENV["MATCH_GIT_URL"],
-      readonly: false,
-      app_identifier: "cloud.dkroeker.GaussianSplattingViewer"
     )
   end
 end
