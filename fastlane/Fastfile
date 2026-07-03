@@ -1,6 +1,6 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# No 2FA needed — the API key authenticates everything.
-# build_app with api_key auto-manages code signing (cert + profile).
+# The app_store_connect_api_key action stores the token globally; upload_to_testflight
+# picks it up automatically. build_app uses export_team_id for signing.
 #
 # Required GitHub secrets (set by Dennis):
 #   APP_STORE_CONNECT_KEY_ID       — Key ID from App Store Connect
@@ -24,15 +24,15 @@ platform :ios do
   desc "Build and upload to TestFlight (CI uses this)"
   lane :beta do
     # CI workflow already ran `xcodegen generate` from repo root before invoking fastlane.
+    # app_store_connect_api_key stores the token for upload_to_testflight.
 
     build_app(
       project: "GaussianSplattingViewer.xcodeproj",
       scheme: "GaussianSplattingViewer",
       configuration: "Release",
       export_method: "app-store",
-      include_bitcode: false,
-      api_key: api_key,
-      xcargs: "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID', '')} CODE_SIGN_STYLE=ProvisioningPool"
+      export_team_id: ENV.fetch("APPLE_TEAM_ID", ""),
+      xcargs: "DEVELOPMENT_TEAM=#{ENV.fetch('APPLE_TEAM_ID', '')}"
     )
 
     upload_to_testflight(
