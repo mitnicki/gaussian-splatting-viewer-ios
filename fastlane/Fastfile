@@ -28,62 +28,35 @@ platform :ios do
 
   desc "Build and upload to TestFlight (CI uses this)"
   lane :beta do
-    ipa_path = nil
-    Dir.chdir(REPO_ROOT) do
-      key_path = "/tmp/AuthKey_#{ENV['ASC_API_KEY_ID']}.p8"
-      File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
+    key_path = "/tmp/AuthKey_#{ENV['ASC_API_KEY_ID']}.p8"
+    File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
 
-      export_plist = "/tmp/ExportOptions.plist"
-      File.write(export_plist, <<~PLIST)
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>method</key>
-          <string>app-store</string>
-          <key>signingStyle</key>
-          <string>automatic</string>
-          <key>teamID</key>
-          <string>#{ENV.fetch('APPLE_TEAM_ID', '')}</string>
-          <key>uploadBitcode</key>
-          <false/>
-          <key>uploadSymbols</key>
-          <true/>
-        </dict>
-        </plist>
-      PLIST
-
-      archive_path = "build/GaussianSplattingViewer.xcarchive"
-      ipa_output_dir = "build/ipa"
-      sh("rm -rf build && mkdir -p #{ipa_output_dir}")
-
-      sh("xcodebuild archive " \
-         "-project GaussianSplattingViewer.xcodeproj " \
-         "-scheme GaussianSplattingViewer " \
-         "-configuration Release " \
-         "-destination 'generic/platform=iOS' " \
-         "-archivePath #{archive_path} " \
-         "-allowProvisioningUpdates " \
-         "-authenticationKeyPath #{key_path} " \
-         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
-         "CODE_SIGNING_ALLOWED=YES")
-
-      sh("xcodebuild -exportArchive " \
-         "-archivePath #{archive_path} " \
-         "-exportPath #{ipa_output_dir} " \
-         "-exportOptionsPlist #{export_plist} " \
-         "-allowProvisioningUpdates " \
-         "-authenticationKeyPath #{key_path} " \
-         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}")
-
-      ipa_path = File.expand_path("#{ipa_output_dir}/GaussianSplattingViewer.ipa")
-    end
+    build_app(
+      project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
+      scheme: "GaussianSplattingViewer",
+      configuration: "Release",
+      export_method: "app-store",
+      export_team_id: ENV.fetch("APPLE_TEAM_ID", ""),
+      export_options: {
+        signingStyle: "automatic",
+        uploadBitcode: false,
+        uploadSymbols: true
+      },
+      output_directory: File.join(REPO_ROOT, "build/ipa"),
+      output_name: "GaussianSplattingViewer.ipa",
+      xcargs: "-allowProvisioningUpdates " \
+              "-authenticationKeyPath #{key_path} " \
+              "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
+              "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}",
+      codesigning_identity: nil,
+      skip_codesigning: false,
+      include_bitcode: false,
+      include_symbols: true
+    )
 
     upload_to_testflight(
       api_key: api_key,
-      ipa: ipa_path,
+      ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: true
     )
   end
