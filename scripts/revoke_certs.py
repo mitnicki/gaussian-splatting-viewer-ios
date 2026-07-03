@@ -49,8 +49,8 @@ def main():
     ctx = ssl.create_default_context()
     conn = http.client.HTTPSConnection("api.appstoreconnect.apple.com", context=ctx)
 
-    # List all certificates
-    conn.request("GET", "/v1/certificates?filter[certificateType]=IOS_DISTRIBUTION",
+    # List all certificates (no filter — see everything)
+    conn.request("GET", "/v1/certificates?limit=200",
                  headers={"Authorization": f"Bearer {jwt_token}"})
     resp = conn.getresponse()
     body = json.loads(resp.read().decode())
@@ -60,7 +60,7 @@ def main():
         sys.exit(1)
 
     certs = body.get("data", [])
-    print(f"Found {len(certs)} distribution certificates")
+    print(f"Found {len(certs)} certificates")
 
     for cert in certs:
         cert_id = cert["id"]
