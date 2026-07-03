@@ -1,7 +1,6 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# CI flow: cert + sigh → unlock keychain → unsigned archive → manual export → upload
-# Keychain unlock prevents codesign from hanging waiting for a prompt.
-# timeout on exportArchive prevents 2h hang when Apple servers are slow.
+# CI flow: cert + sigh → unsigned archive → build_app (export only) → upload
+# The key insight: fastlane's build_app handles keychain unlocking internally.
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -32,12 +31,6 @@ platform :ios do
       force: true
     )
 
-    # Unlock keychain so codesign can access the private key during export.
-    # GitHub Actions macOS runners have an empty login keychain password.
-    # Without this, codesign hangs indefinitely waiting for a keychain prompt.
-    sh("security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
-    sh("security set-key-partition-list -S apple-tool:,apple: -s -k '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
-
     # Create/get App Store distribution provisioning profile
     sigh(
       api_key: api_key,
@@ -51,7 +44,7 @@ platform :ios do
       ipa_output_dir = "build/ipa"
       sh("rm -rf build && mkdir -p #{ipa_output_dir}")
 
-      # Archive without signing — avoids "does not support provisioning profiles"
+      # Step 1: Archive without signing — avoids "does not support provisioning profiles"
       # on MetalSplatter SPM dependency targets.
       UI.message("=== Archiving (unsigned) ===")
       sh("xcodebuild archive " \
@@ -66,41 +59,32 @@ platform :ios do
          "CODE_SIGNING_REQUIRED=NO " \
          "2>&1")
 
-      # Manual export — signs only the app target with the dist cert+profile.
-      # Keychain is already unlocked so codesign won't hang.
-      # timeout 300 prevents the 2h hang when Apple's provisioning service
-      # is unresponsive — fail fast and let the next push retry.
-      UI.message("=== Exporting IPA ===")
-      export_plist = "/tmp/ExportOptions.plist"
-      File.write(export_plist, <<~PLIST)
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>method</key>
-          <string>app-store</string>
-          <key>signingStyle</key>
-          <string>manual</string>
-          <key>provisioningProfiles</key>
-          <dict>
-            <key>#{app_id}</key>
-            <string>#{profile_name}</string>
-          </dict>
-          <key>teamID</key>
-          <string>#{team_id}</string>
-          <key>uploadBitcode</key>
-          <false/>
-          <key>uploadSymbols</key>
-          <true/>
-        </dict>
-        </plist>
-      PLIST
-
-      sh("xcodebuild -exportArchive " \
-         "-archivePath #{archive_path} " \
-         "-exportPath #{ipa_output_dir} " \
-         "-exportOptionsPlist #{export_plist} " \
-         "2>&1")
+      # Step 2: Export using fastlane build_app with skip_build_archive.
+      # build_app handles keychain unlocking internally — this is the fix
+      # for the codesign hang on GitHub Actions macOS runners.
+      UI.message("=== Exporting IPA via build_app ===")
+      build_app(
+        project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
+        scheme: "GaussianSplattingViewer",
+        configuration: "Release",
+        skip_build_archive: true,
+        skip_package_dependencies_resolution: true,
+        archive_path: File.join(REPO_ROOT, archive_path),
+        export_method: "app-store",
+        signing_style: "manual",
+        export_options: {
+          provisioningProfiles: {
+            app_id => profile_name
+          },
+          signingStyle: "manual",
+          teamID: team_id,
+          uploadBitcode: false,
+          uploadSymbols: true
+        },
+        output_directory: File.join(REPO_ROOT, ipa_output_dir),
+        output_name: "GaussianSplattingViewer.ipa",
+        disable_xcpretty: true
+      )
     end
 
     upload_to_testflight(
