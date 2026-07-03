@@ -1,16 +1,6 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-#
-# 1. Fetch/create distribution certificate via ASC API key (get_certificates)
-# 2. Archive without code signing (CODE_SIGNING_ALLOWED=NO)
-# 3. Export with -allowProvisioningUpdates + ASC auth key (uses cert from step 1)
-# 4. Upload to TestFlight
-#
-# Required GitHub secrets (set by Dennis):
-#   APP_STORE_CONNECT_KEY_ID       — Key ID
-#   APP_STORE_CONNECT_ISSUER_ID     — Issuer ID
-#   APP_STORE_CONNECT_P8_CONTENTS   — .p8 private key contents
-#   APPLE_TEAM_ID                   — Team ID
-
+# CI pattern: cert + sigh create distribution cert/profile, then build_app with manual signing.
+# This avoids the "no devices" error — automatic signing tries to create development profiles.
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -28,74 +18,45 @@ platform :ios do
 
   desc "Build and upload to TestFlight (CI uses this)"
   lane :beta do
-    ipa_path = nil
-    Dir.chdir(REPO_ROOT) do
-      key_path = "/tmp/AuthKey_#{ENV['ASC_API_KEY_ID']}.p8"
-      File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
+    key_path = "/tmp/AuthKey_#{ENV['ASC_API_KEY_ID']}.p8"
+    File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
+    team_id = ENV.fetch("APPLE_TEAM_ID", "")
+    app_id = "cloud.dkroeker.GaussianSplattingViewer"
 
-      # Fetch or create distribution certificate via ASC API
-      get_certificates(
-        api_key: api_key,
-        type: "appstore",
-        platform: "ios"
-      )
+    # Create/get distribution certificate (installs to CI keychain)
+    cert(
+      api_key: api_key,
+      team_id: team_id
+    )
 
-      # Fetch or create App Store provisioning profile
-      get_provisioning_profile(
-        api_key: api_key,
-        app_identifier: "cloud.dkroeker.GaussianSplattingViewer",
-        type: "appstore",
-        platform: "ios"
-      )
+    # Create/get App Store distribution provisioning profile
+    # sigh defaults to App Store profiles (no adhoc flag)
+    profile_uuid = sigh(
+      api_key: api_key,
+      app_identifier: app_id
+    )
 
-      export_plist = "/tmp/ExportOptions.plist"
-      File.write(export_plist, <<~PLIST)
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>method</key>
-          <string>app-store</string>
-          <key>signingStyle</key>
-          <string>automatic</string>
-          <key>teamID</key>
-          <string>#{ENV.fetch('APPLE_TEAM_ID', '')}</string>
-          <key>uploadBitcode</key>
-          <false/>
-          <key>uploadSymbols</key>
-          <true/>
-        </dict>
-        </plist>
-      PLIST
-
-      archive_path = "build/GaussianSplattingViewer.xcarchive"
-      ipa_output_dir = "build/ipa"
-      sh("rm -rf build && mkdir -p #{ipa_output_dir}")
-
-      # Archive without signing — export step handles signing
-      sh("xcodebuild archive " \
-         "-project GaussianSplattingViewer.xcodeproj " \
-         "-scheme GaussianSplattingViewer " \
-         "-configuration Release " \
-         "-destination 'generic/platform=iOS' " \
-         "-archivePath #{archive_path} " \
-         "CODE_SIGNING_ALLOWED=NO")
-
-      sh("xcodebuild -exportArchive " \
-         "-archivePath #{archive_path} " \
-         "-exportPath #{ipa_output_dir} " \
-         "-exportOptionsPlist #{export_plist} " \
-         "-allowProvisioningUpdates " \
-         "-authenticationKeyPath #{key_path} " \
-         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}")
-
-      ipa_path = File.expand_path("#{ipa_output_dir}/GaussianSplattingViewer.ipa")
-    end
+    build_app(
+      project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
+      scheme: "GaussianSplattingViewer",
+      configuration: "Release",
+      export_method: "app-store",
+      export_team_id: team_id,
+      output_directory: File.join(REPO_ROOT, "build/ipa"),
+      output_name: "GaussianSplattingViewer.ipa",
+      xcargs: "-allowProvisioningUpdates " \
+              "-authenticationKeyPath #{key_path} " \
+              "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
+              "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
+              "CODE_SIGN_STYLE=Manual " \
+              "PROVISIONING_PROFILE_SPECIFIER='#{profile_uuid}'",
+      include_bitcode: false,
+      include_symbols: true
+    )
 
     upload_to_testflight(
       api_key: api_key,
-      ipa: ipa_path,
+      ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: true
     )
   end
