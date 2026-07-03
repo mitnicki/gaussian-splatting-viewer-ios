@@ -1,5 +1,6 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# CI flow: cert + sigh → build_app with manual signing → upload_to_testflight
+# CI flow: cert + sigh → unsigned archive → manual export with dist profile → upload
+# The unsigned archive avoids signing issues on SPM dependency targets (MetalSplatter).
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -36,25 +37,62 @@ platform :ios do
       app_identifier: app_id
     )
 
-    build_app(
-      project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
-      scheme: "GaussianSplattingViewer",
-      configuration: "Release",
-      export_method: "app-store",
-      export_team_id: team_id,
-      output_directory: File.join(REPO_ROOT, "build/ipa"),
-      output_name: "GaussianSplattingViewer.ipa",
-      xcargs: "-allowProvisioningUpdates " \
-              "-authenticationKeyPath #{key_path} " \
-              "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-              "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
-              "CODE_SIGN_STYLE=Manual " \
-              "CODE_SIGN_IDENTITY='iPhone Distribution' " \
-              "DEVELOPMENT_TEAM=#{team_id} " \
-              "PROVISIONING_PROFILE_SPECIFIER='#{profile_uuid}'",
-      include_bitcode: false,
-      include_symbols: true
-    )
+    profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
+
+    Dir.chdir(REPO_ROOT) do
+      archive_path = "build/GaussianSplattingViewer.xcarchive"
+      ipa_output_dir = "build/ipa"
+      sh("rm -rf build && mkdir -p #{ipa_output_dir}")
+
+      # Archive without signing — avoids "does not support provisioning profiles"
+      # on MetalSplatter SPM dependency targets
+      sh("xcodebuild archive " \
+         "-project GaussianSplattingViewer.xcodeproj " \
+         "-scheme GaussianSplattingViewer " \
+         "-configuration Release " \
+         "-destination 'generic/platform=iOS' " \
+         "-archivePath #{archive_path} " \
+         "-allowProvisioningUpdates " \
+         "-authenticationKeyPath #{key_path} " \
+         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
+         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
+         "CODE_SIGNING_ALLOWED=NO")
+
+      # Manual export — signs only the app target with the dist cert+profile
+      export_plist = "/tmp/ExportOptions.plist"
+      File.write(export_plist, <<~PLIST)
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>method</key>
+          <string>app-store</string>
+          <key>signingStyle</key>
+          <string>manual</string>
+          <key>provisioningProfiles</key>
+          <dict>
+            <key>#{app_id}</key>
+            <string>#{profile_name}</string>
+          </dict>
+          <key>teamID</key>
+          <string>#{team_id}</string>
+          <key>uploadBitcode</key>
+          <false/>
+          <key>uploadSymbols</key>
+          <true/>
+        </dict>
+        </plist>
+      PLIST
+
+      sh("xcodebuild -exportArchive " \
+         "-archivePath #{archive_path} " \
+         "-exportPath #{ipa_output_dir} " \
+         "-exportOptionsPlist #{export_plist} " \
+         "-allowProvisioningUpdates " \
+         "-authenticationKeyPath #{key_path} " \
+         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
+         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}")
+    end
 
     upload_to_testflight(
       api_key: api_key,
