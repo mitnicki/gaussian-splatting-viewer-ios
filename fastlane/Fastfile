@@ -50,6 +50,7 @@ platform :ios do
               "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
               "CODE_SIGN_STYLE=Manual " \
               "CODE_SIGN_IDENTITY='iPhone Distribution' " \
+              "DEVELOPMENT_TEAM=#{team_id} " \
               "PROVISIONING_PROFILE_SPECIFIER='#{profile_uuid}'",
       include_bitcode: false,
       include_symbols: true
