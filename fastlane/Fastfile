@@ -1,5 +1,7 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
 # CI flow: cert + sigh → unlock keychain → unsigned archive → manual export → upload
+# Keychain unlock prevents codesign from hanging waiting for a prompt.
+# timeout on exportArchive prevents 2h hang when Apple servers are slow.
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -66,6 +68,8 @@ platform :ios do
 
       # Manual export — signs only the app target with the dist cert+profile.
       # Keychain is already unlocked so codesign won't hang.
+      # timeout 300 prevents the 2h hang when Apple's provisioning service
+      # is unresponsive — fail fast and let the next push retry.
       UI.message("=== Exporting IPA ===")
       export_plist = "/tmp/ExportOptions.plist"
       File.write(export_plist, <<~PLIST)
@@ -92,7 +96,7 @@ platform :ios do
         </plist>
       PLIST
 
-      sh("xcodebuild -exportArchive " \
+      sh("timeout 300 xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
          "-exportOptionsPlist #{export_plist} " \
