@@ -63,3 +63,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
         MARKETING_VERSION: "0.4.0"
         CURRENT_PROJECT_VERSION: "4"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
