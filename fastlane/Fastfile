@@ -59,7 +59,9 @@ platform :ios do
          "CODE_SIGNING_ALLOWED=NO " \
          "CODE_SIGNING_REQUIRED=NO")
 
-      # Manual export — signs only the app target with the dist cert+profile
+      # Manual export — signs only the app target with the dist cert+profile.
+      # No -allowProvisioningUpdates: the profile is already installed locally,
+      # and this flag causes xcodebuild to hang waiting for Apple's server.
       export_plist = "/tmp/ExportOptions.plist"
       File.write(export_plist, <<~PLIST)
         <?xml version="1.0" encoding="UTF-8"?>
@@ -67,7 +69,7 @@ platform :ios do
         <plist version="1.0">
         <dict>
           <key>method</key>
-          <string>app-store</string>
+          <string>app-store-connect</string>
           <key>signingStyle</key>
           <string>manual</string>
           <key>provisioningProfiles</key>
@@ -88,11 +90,7 @@ platform :ios do
       sh("xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
-         "-exportOptionsPlist #{export_plist} " \
-         "-allowProvisioningUpdates " \
-         "-authenticationKeyPath #{key_path} " \
-         "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-         "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}")
+         "-exportOptionsPlist #{export_plist}")
     end
 
     upload_to_testflight(
