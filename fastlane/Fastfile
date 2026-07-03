@@ -45,18 +45,21 @@ platform :ios do
       spm_cache = "/tmp/spm-packages"
       sh("rm -rf build && mkdir -p #{ipa_output_dir} #{spm_cache}")
 
-      # Step 1: Resolve SPM packages separately (with timeout + verbose)
+      # Step 1: Resolve SPM packages separately to isolate hangs
       UI.message("=== Resolving SPM dependencies ===")
-      sh("timeout 300 xcodebuild " \
+      sh("xcodebuild " \
          "-project GaussianSplattingViewer.xcodeproj " \
          "-scheme GaussianSplattingViewer " \
          "-resolvePackageDependencies " \
          "-clonedSourcePackagesDirPath #{spm_cache} " \
          "2>&1 || true")
 
-      # Step 2: Archive without signing (with timeout)
+      # Step 2: Archive without signing — avoids "does not support provisioning profiles"
+      # on MetalSplatter SPM dependency targets.
+      # No -allowProvisioningUpdates: unnecessary with CODE_SIGNING_ALLOWED=NO,
+      # and causes xcodebuild to hang waiting for Apple's provisioning service.
       UI.message("=== Archiving (unsigned) ===")
-      sh("timeout 1800 xcodebuild archive " \
+      sh("xcodebuild archive " \
          "-project GaussianSplattingViewer.xcodeproj " \
          "-scheme GaussianSplattingViewer " \
          "-configuration Release " \
@@ -65,7 +68,6 @@ platform :ios do
          "-clonedSourcePackagesDirPath #{spm_cache} " \
          "-skipPackagePluginValidation " \
          "-skipMacroValidation " \
-         "-quiet " \
          "CODE_SIGNING_ALLOWED=NO " \
          "CODE_SIGNING_REQUIRED=NO " \
          "2>&1")
@@ -97,7 +99,7 @@ platform :ios do
         </plist>
       PLIST
 
-      sh("timeout 600 xcodebuild -exportArchive " \
+      sh("xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
          "-exportOptionsPlist #{export_plist} " \
