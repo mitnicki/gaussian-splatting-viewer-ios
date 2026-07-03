@@ -42,26 +42,36 @@ platform :ios do
     Dir.chdir(REPO_ROOT) do
       archive_path = "build/GaussianSplattingViewer.xcarchive"
       ipa_output_dir = "build/ipa"
-      sh("rm -rf build && mkdir -p #{ipa_output_dir}")
+      spm_cache = "/tmp/spm-packages"
+      sh("rm -rf build && mkdir -p #{ipa_output_dir} #{spm_cache}")
 
-      # Archive without signing — avoids "does not support provisioning profiles"
-      # on MetalSplatter SPM dependency targets.
-      # No -allowProvisioningUpdates: unnecessary with CODE_SIGNING_ALLOWED=NO,
-      # and can cause xcodebuild to hang waiting for Apple's provisioning service.
-      sh("xcodebuild archive " \
+      # Step 1: Resolve SPM packages separately (with timeout + verbose)
+      UI.message("=== Resolving SPM dependencies ===")
+      sh("timeout 300 xcodebuild " \
+         "-project GaussianSplattingViewer.xcodeproj " \
+         "-scheme GaussianSplattingViewer " \
+         "-resolvePackageDependencies " \
+         "-clonedSourcePackagesDirPath #{spm_cache} " \
+         "2>&1 || true")
+
+      # Step 2: Archive without signing (with timeout)
+      UI.message("=== Archiving (unsigned) ===")
+      sh("timeout 1800 xcodebuild archive " \
          "-project GaussianSplattingViewer.xcodeproj " \
          "-scheme GaussianSplattingViewer " \
          "-configuration Release " \
          "-destination 'generic/platform=iOS' " \
          "-archivePath #{archive_path} " \
+         "-clonedSourcePackagesDirPath #{spm_cache} " \
          "-skipPackagePluginValidation " \
          "-skipMacroValidation " \
+         "-quiet " \
          "CODE_SIGNING_ALLOWED=NO " \
-         "CODE_SIGNING_REQUIRED=NO")
+         "CODE_SIGNING_REQUIRED=NO " \
+         "2>&1")
 
-      # Manual export — signs only the app target with the dist cert+profile.
-      # No -allowProvisioningUpdates: the profile is already installed locally,
-      # and this flag causes xcodebuild to hang waiting for Apple's server.
+      # Step 3: Manual export — signs only the app target with the dist cert+profile
+      UI.message("=== Exporting IPA ===")
       export_plist = "/tmp/ExportOptions.plist"
       File.write(export_plist, <<~PLIST)
         <?xml version="1.0" encoding="UTF-8"?>
@@ -87,10 +97,11 @@ platform :ios do
         </plist>
       PLIST
 
-      sh("xcodebuild -exportArchive " \
+      sh("timeout 600 xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
-         "-exportOptionsPlist #{export_plist}")
+         "-exportOptionsPlist #{export_plist} " \
+         "2>&1")
     end
 
     upload_to_testflight(
