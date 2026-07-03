@@ -3,6 +3,8 @@
 # Two-phase build:
 #   1. Archive without code signing (CODE_SIGNING_ALLOWED=NO)
 #   2. Export with -allowProvisioningUpdates + auth key (creates App Store dist profile)
+#   3. Create app in App Store Connect if it doesn't exist
+#   4. Upload to TestFlight
 #
 # Required GitHub secrets (set by Dennis):
 #   APP_STORE_CONNECT_KEY_ID       — Key ID
@@ -82,7 +84,20 @@ platform :ios do
       ipa_path = File.expand_path("#{ipa_output_dir}/GaussianSplattingViewer.ipa")
     end
 
-    # Upload to TestFlight (outside chdir — fastlane resolves relative to fastlane/)
+    # Create the app in App Store Connect if it doesn't exist yet
+    create_app_online(
+      api_key: api_key,
+      name: "Gaussian Splatting Viewer",
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer",
+      language: "en-US",
+      company_name: "Kroeker",
+      platform: "ios",
+      sku: "dkroeker.gaussiansplatviewer",
+      team_id: ENV.fetch("APPLE_TEAM_ID", ""),
+      itc_team_id: ENV.fetch("APPLE_TEAM_ID", "")
+    )
+
+    # Upload to TestFlight
     upload_to_testflight(
       api_key: api_key,
       ipa: ipa_path,
