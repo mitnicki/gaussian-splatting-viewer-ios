@@ -3,8 +3,7 @@
 # Two-phase build:
 #   1. Archive without code signing (CODE_SIGNING_ALLOWED=NO)
 #   2. Export with -allowProvisioningUpdates + auth key (creates App Store dist profile)
-#   3. Create app in App Store Connect if it doesn't exist
-#   4. Upload to TestFlight
+#   3. Upload to TestFlight (app record is created by CI step scripts/create_asc_app.py)
 #
 # Required GitHub secrets (set by Dennis):
 #   APP_STORE_CONNECT_KEY_ID       — Key ID
@@ -29,15 +28,11 @@ platform :ios do
 
   desc "Build and upload to TestFlight (CI uses this)"
   lane :beta do
-    # CI workflow already ran `xcodegen generate` from repo root before invoking fastlane.
-    # fastlane runs from fastlane/ subdir, so chdir to repo root for xcodebuild.
     ipa_path = nil
     Dir.chdir(REPO_ROOT) do
-      # Write .p8 key file for Xcode auto-provisioning
       key_path = "/tmp/AuthKey_#{ENV['ASC_API_KEY_ID']}.p8"
       File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
 
-      # Write export options plist for app-store distribution
       export_plist = "/tmp/ExportOptions.plist"
       File.write(export_plist, <<~PLIST)
         <?xml version="1.0" encoding="UTF-8"?>
@@ -62,7 +57,6 @@ platform :ios do
       ipa_output_dir = "build/ipa"
       sh("rm -rf build && mkdir -p #{ipa_output_dir}")
 
-      # Phase 1: Archive without signing
       sh("xcodebuild archive " \
          "-project GaussianSplattingViewer.xcodeproj " \
          "-scheme GaussianSplattingViewer " \
@@ -71,7 +65,6 @@ platform :ios do
          "-archivePath #{archive_path} " \
          "CODE_SIGNING_ALLOWED=NO")
 
-      # Phase 2: Export with App Store signing using auth key
       sh("xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
@@ -84,20 +77,6 @@ platform :ios do
       ipa_path = File.expand_path("#{ipa_output_dir}/GaussianSplattingViewer.ipa")
     end
 
-    # Create the app in App Store Connect if it doesn't exist yet
-    create_app_online(
-      api_key: api_key,
-      name: "Gaussian Splatting Viewer",
-      app_identifier: "cloud.dkroeker.GaussianSplattingViewer",
-      language: "en-US",
-      company_name: "Kroeker",
-      platform: "ios",
-      sku: "dkroeker.gaussiansplatviewer",
-      team_id: ENV.fetch("APPLE_TEAM_ID", ""),
-      itc_team_id: ENV.fetch("APPLE_TEAM_ID", "")
-    )
-
-    # Upload to TestFlight
     upload_to_testflight(
       api_key: api_key,
       ipa: ipa_path,
