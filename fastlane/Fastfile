@@ -22,10 +22,12 @@ platform :ios do
     team_id = ENV.fetch("APPLE_TEAM_ID", "")
     app_id = "cloud.dkroeker.GaussianSplattingViewer"
 
-    # Create/get distribution certificate (installs to CI keychain)
+    # Create/get distribution certificate — force: true revokes orphaned
+    # certs from previous ephemeral CI runners that hold no private key locally
     cert(
       api_key: api_key,
-      team_id: team_id
+      team_id: team_id,
+      force: true
     )
 
     # Create/get App Store distribution provisioning profile
