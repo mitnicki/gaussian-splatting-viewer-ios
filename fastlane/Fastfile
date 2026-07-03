@@ -1,6 +1,6 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# CI flow: cert + sigh → gym (archive+export) → upload_to_testflight
-# gym handles the export with proper API key auth and timeout management.
+# CI flow: cert + sigh → unsigned archive → manual export with dist profile → upload
+# The unsigned archive avoids signing issues on SPM dependency targets (MetalSplatter).
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -23,15 +23,18 @@ platform :ios do
     team_id = ENV.fetch("APPLE_TEAM_ID", "")
     app_id = "cloud.dkroeker.GaussianSplattingViewer"
 
-    # Revoke orphaned certs from previous ephemeral CI runners
-    sh("python3 #{File.join(REPO_ROOT, 'scripts/revoke_certs.py')}") rescue nil
-
-    # Create/get distribution certificate
+    # Create/get distribution certificate — force: true revokes orphaned
+    # certs from previous ephemeral CI runners that hold no private key locally
     cert(
       api_key: api_key,
       team_id: team_id,
       force: true
     )
+
+    # Unlock keychain so codesign can access the private key during export.
+    # GitHub Actions macOS runners have an empty login keychain password.
+    sh("security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
+    sh("security set-keychain-settings -t 3600 ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
 
     # Create/get App Store distribution provisioning profile
     profile_uuid = sigh(
@@ -41,34 +44,63 @@ platform :ios do
 
     profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
 
-    # Use gym to archive + export in one step.
-    # export_method app-store uses the API key for provisioning.
-    # include_bitcode false — Xcode 26 dropped bitcode support.
-    gym(
-      project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
-      scheme: "GaussianSplattingViewer",
-      configuration: "Release",
-      export_method: "app-store",
-      export_team_id: team_id,
-      export_options: {
-        signingStyle: "manual",
-        provisioningProfiles: {
-          app_id => profile_name
+    Dir.chdir(REPO_ROOT) do
+      archive_path = "build/GaussianSplattingViewer.xcarchive"
+      ipa_output_dir = "build/ipa"
+      spm_cache = "/tmp/spm-packages"
+      sh("rm -rf build && mkdir -p #{ipa_output_dir} #{spm_cache}")
+
+      # Step 1: Resolve SPM packages separately to isolate hangs
+      UI.message("=== Resolving SPM dependencies ===")
+      sh("xcodebuild " \
+         "-project GaussianSplattingViewer.xcodeproj " \
+         "-scheme GaussianSplattingViewer " \
+         "-resolvePackageDependencies " \
+         "-clonedSourcePackagesDirPath #{spm_cache} " \
+         "2>&1 || true")
+
+      # Step 2: Archive without signing — avoids "does not support provisioning profiles"
+      # on MetalSplatter SPM dependency targets.
+      UI.message("=== Archiving (unsigned) ===")
+      sh("xcodebuild archive " \
+         "-project GaussianSplattingViewer.xcodeproj " \
+         "-scheme GaussianSplattingViewer " \
+         "-configuration Release " \
+         "-destination 'generic/platform=iOS' " \
+         "-archivePath #{archive_path} " \
+         "-clonedSourcePackagesDirPath #{spm_cache} " \
+         "-skipPackagePluginValidation " \
+         "-skipMacroValidation " \
+         "CODE_SIGNING_ALLOWED=NO " \
+         "CODE_SIGNING_REQUIRED=NO " \
+         "2>&1")
+
+      # Step 3: Manual export — signs only the app target with the dist cert+profile.
+      # Uses build_app with skip_build_archive to let fastlane handle keychain + codesign.
+      UI.message("=== Exporting IPA ===")
+      build_app(
+        project: File.join(REPO_ROOT, "GaussianSplattingViewer.xcodeproj"),
+        scheme: "GaussianSplattingViewer",
+        configuration: "Release",
+        archive_path: File.join(REPO_ROOT, archive_path),
+        skip_build_archive: true,
+        skip_package_dependencies_resolution: true,
+        export_method: "app-store-connect",
+        signing_style: "manual",
+        export_options: {
+          provisioningProfiles: {
+            app_id => profile_name
+          },
+          signingStyle: "manual",
+          teamID: team_id,
+          uploadBitcode: false,
+          uploadSymbols: true
         },
-        uploadBitcode: false,
-        uploadSymbols: true
-      },
-      output_directory: File.join(REPO_ROOT, "build/ipa"),
-      output_name: "GaussianSplattingViewer.ipa",
-      xcargs: "-allowProvisioningUpdates " \
-              "-authenticationKeyPath #{key_path} " \
-              "-authenticationKeyID #{ENV['ASC_API_KEY_ID']} " \
-              "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']} " \
-              "CODE_SIGNING_ALLOWED=NO",
-      include_bitcode: false,
-      include_symbols: true,
-      clean: true
-    )
+        output_directory: File.join(REPO_ROOT, ipa_output_dir),
+        output_name: "GaussianSplattingViewer.ipa",
+        disable_xcpretty: true
+      )
+    end
 
     upload_to_testflight(
       api_key: api_key,
