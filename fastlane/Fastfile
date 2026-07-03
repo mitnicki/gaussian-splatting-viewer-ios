@@ -96,7 +96,7 @@ platform :ios do
         </plist>
       PLIST
 
-      sh("timeout 300 xcodebuild -exportArchive " \
+      sh("xcodebuild -exportArchive " \
          "-archivePath #{archive_path} " \
          "-exportPath #{ipa_output_dir} " \
          "-exportOptionsPlist #{export_plist} " \
