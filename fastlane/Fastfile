@@ -1,6 +1,5 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# CI flow: cert + sigh → unsigned archive → codesign + package IPA → altool upload
-# Bypasses xcodebuild -exportArchive which hangs contacting Apple servers.
+# CI flow: cert + sigh → unlock keychain → unsigned archive → manual export → upload
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
@@ -23,27 +22,26 @@ platform :ios do
     team_id = ENV.fetch("APPLE_TEAM_ID", "")
     app_id = "cloud.dkroeker.GaussianSplattingViewer"
 
-    # Revoke orphaned certs from previous ephemeral CI runners
-    sh("python3 #{File.join(REPO_ROOT, 'scripts/revoke_certs.py')} 2>/dev/null || true")
-
-    # Create/get distribution certificate
+    # Create/get distribution certificate — force: true revokes orphaned
+    # certs from previous ephemeral CI runners that hold no private key locally
     cert(
       api_key: api_key,
       team_id: team_id,
       force: true
     )
 
-    # Unlock keychain so codesign can access the private key
+    # Unlock keychain so codesign can access the private key during export.
+    # GitHub Actions macOS runners have an empty login keychain password.
+    # Without this, codesign hangs indefinitely waiting for a keychain prompt.
     sh("security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
-    sh("security set-keychain-settings -t 3600 ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
+    sh("security set-key-partition-list -S apple-tool:,apple: -s -k '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
 
     # Create/get App Store distribution provisioning profile
-    profile_uuid = sigh(
+    sigh(
       api_key: api_key,
       app_identifier: app_id
     )
 
-    profile_path = ENV["SIGH_PROFILE_PATH"]
     profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
 
     Dir.chdir(REPO_ROOT) do
@@ -66,35 +64,45 @@ platform :ios do
          "CODE_SIGNING_REQUIRED=NO " \
          "2>&1")
 
-      # Manually sign the .app and package as IPA.
-      # This bypasses xcodebuild -exportArchive which hangs contacting Apple.
-      app_path = "#{archive_path}/Products/Applications/GaussianSplattingViewer.app"
-      ipa_path = "#{ipa_output_dir}/GaussianSplattingViewer.ipa"
+      # Manual export — signs only the app target with the dist cert+profile.
+      # Keychain is already unlocked so codesign won't hang.
+      UI.message("=== Exporting IPA ===")
+      export_plist = "/tmp/ExportOptions.plist"
+      File.write(export_plist, <<~PLIST)
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>method</key>
+          <string>app-store</string>
+          <key>signingStyle</key>
+          <string>manual</string>
+          <key>provisioningProfiles</key>
+          <dict>
+            <key>#{app_id}</key>
+            <string>#{profile_name}</string>
+          </dict>
+          <key>teamID</key>
+          <string>#{team_id}</string>
+          <key>uploadBitcode</key>
+          <false/>
+          <key>uploadSymbols</key>
+          <true/>
+        </dict>
+        </plist>
+      PLIST
 
-      # Install provisioning profile
-      sh("cp #{profile_path} ~/Library/MobileDevice/Provisioning\\ Profiles/ 2>/dev/null || true")
-
-      # Codesign the app with the distribution cert and profile
-      sh("codesign -f -s 'iPhone Distribution' " \
-         "--entitlements #{app_path}/GaussianSplattingViewer.entitlements " \
-         "--provisioning-profile #{profile_uuid} " \
-         "#{app_path} 2>&1 || " \
-         "codesign -f -s 'iPhone Distribution' #{app_path} 2>&1")
-
-      # Package as IPA
-      sh("mkdir -p Payload")
-      sh("cp -r #{app_path} Payload/")
-      sh("zip -r #{ipa_path} Payload")
-      sh("rm -rf Payload")
+      sh("xcodebuild -exportArchive " \
+         "-archivePath #{archive_path} " \
+         "-exportPath #{ipa_output_dir} " \
+         "-exportOptionsPlist #{export_plist} " \
+         "2>&1")
     end
 
-    # Upload to TestFlight via altool (bypasses xcodebuild export entirely)
-    sh("xcrun altool --upload-app " \
-       "-f #{File.join(REPO_ROOT, 'build/ipa/GaussianSplattingViewer.ipa')} " \
-       "-t ios " \
-       "--apiKey #{ENV['ASC_API_KEY_ID']} " \
-       "--apiIssuer #{ENV['ASC_ISSUER_ID']} " \
-       "--type testflight " \
-       "2>&1")
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
+      skip_waiting_for_build_processing: true
+    )
   end
 end
