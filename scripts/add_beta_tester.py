@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add a beta tester to App Store Connect — creates an external group if needed."""
+"""Add a beta tester to App Store Connect — tries internal group first."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -31,7 +31,7 @@ def asc(conn, jwt, method, path, body=None):
     conn.request(method, path, body=json.dumps(body) if body else None, headers=headers)
     resp = conn.getresponse()
     raw = resp.read().decode()
-    data = json.loads(raw) if raw else {}
+    data = json.loads(raw) if raw.strip() else {}
     return resp.status, data
 
 def main():
@@ -52,118 +52,112 @@ def main():
 
     bundle_id = "cloud.dkroeker.GaussianSplattingViewer"
 
-    # Get app
     status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
-    if status != 200 or not data.get("data"):
-        print(f"App not found: {status} {data}")
-        sys.exit(1)
     app_id = data["data"][0]["id"]
     print(f"App: {app_id}")
 
-    # Get beta groups
+    # Get all beta groups
     status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
     groups = data.get("data", [])
-
-    # Find or create an EXTERNAL beta group
-    ext_group = None
     for g in groups:
-        if not g.get("attributes", {}).get("isInternalGroup", True):
-            ext_group = g
-            break
+        print(f"  Group: {g['attributes']['name']} internal={g['attributes'].get('isInternalGroup',False)} ({g['id']})")
 
-    if ext_group:
-        group_id = ext_group["id"]
-        print(f"Using existing external group: {ext_group['attributes']['name']} ({group_id})")
-    else:
-        # Create external group
-        print("Creating external beta group 'External Testers'...")
-        status, data = asc(conn, jwt, "POST", "/v1/betaGroups", {
-            "data": {
-                "type": "betaGroups",
-                "attributes": {
-                    "name": "External Testers",
-                    "hasAccessToAllBuilds": True
-                },
-                "relationships": {
-                    "app": {"data": {"type": "apps", "id": app_id}}
+    # Try INTERNAL group first (no beta review needed)
+    internal_group = None
+    external_group = None
+    for g in groups:
+        if g.get("attributes", {}).get("isInternalGroup"):
+            internal_group = g
+        else:
+            external_group = g
+
+    # Try adding to internal group
+    if internal_group:
+        group_id = internal_group["id"]
+        print(f"\nTrying INTERNAL group: {internal_group['attributes']['name']}")
+
+        # Check if tester already exists
+        status, data = asc(conn, jwt, "GET", f"/v1/betaTesters?filter[email]={email}")
+        if status == 200 and data.get("data"):
+            tester_id = data["data"][0]["id"]
+            state = data["data"][0]["attributes"].get("state", "")
+            print(f"Tester exists: {tester_id} state={state}")
+            # Add to internal group
+            status, data = asc(conn, jwt, "POST",
+                f"/v1/betaGroups/{group_id}/relationships/betaTesters",
+                {"data": [{"type": "betaTesters", "id": tester_id}]})
+            if status in (200, 201, 204):
+                print(f"Added to internal group — SUCCESS")
+                print(f"TestFlight invite will be sent to {email}")
+                conn.close()
+                return
+            else:
+                print(f"Add to internal failed: {status} {json.dumps(data)[:200]}")
+        else:
+            # Create tester in internal group
+            attrs = {"email": email}
+            if first_name: attrs["firstName"] = first_name
+            if last_name: attrs["lastName"] = last_name
+            status, data = asc(conn, jwt, "POST", "/v1/betaTesters", {
+                "data": {
+                    "type": "betaTesters",
+                    "attributes": attrs,
+                    "relationships": {
+                        "betaGroups": {"data": [{"type": "betaGroups", "id": group_id}]}
+                    }
                 }
-            }
-        })
-        if status == 201:
-            group_id = data["data"]["id"]
-            print(f"Created external group: {group_id}")
+            })
+            if status == 201:
+                print(f"Created tester in internal group: {data['data']['id']}")
+                print(f"TestFlight invite sent to {email}")
+                conn.close()
+                return
+            else:
+                print(f"Create in internal failed: {status} {json.dumps(data)[:300]}")
+
+    # If internal didn't work, try external (may need beta review)
+    if external_group:
+        group_id = external_group["id"]
+        print(f"\nTrying EXTERNAL group: {external_group['attributes']['name']}")
+
+        status, data = asc(conn, jwt, "GET", f"/v1/betaTesters?filter[email]={email}")
+        if status == 200 and data.get("data"):
+            tester_id = data["data"][0]["id"]
+            state = data["data"][0]["attributes"].get("state", "")
+            print(f"Tester exists: {tester_id} state={state}")
+            status, data = asc(conn, jwt, "POST",
+                f"/v1/betaGroups/{group_id}/relationships/betaTesters",
+                {"data": [{"type": "betaTesters", "id": tester_id}]})
+            if status in (200, 201, 204):
+                print(f"Added to external group")
+                print(f"Tester will be invited once beta app review approves")
+                conn.close()
+                return
+            else:
+                print(f"Add to external failed: {status} {json.dumps(data)[:200]}")
         else:
-            print(f"Failed to create external group: {status} {json.dumps(data, indent=2)}")
-            sys.exit(1)
+            attrs = {"email": email}
+            if first_name: attrs["firstName"] = first_name
+            if last_name: attrs["lastName"] = last_name
+            status, data = asc(conn, jwt, "POST", "/v1/betaTesters", {
+                "data": {
+                    "type": "betaTesters",
+                    "attributes": attrs,
+                    "relationships": {
+                        "betaGroups": {"data": [{"type": "betaGroups", "id": group_id}]}
+                    }
+                }
+            })
+            if status == 201:
+                print(f"Created tester in external group: {data['data']['id']}")
+                conn.close()
+                return
+            else:
+                print(f"Create in external failed: {status} {json.dumps(data)[:300]}")
 
-    # Get builds for this app
-    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=5")
-    builds = data.get("data", [])
-    if not builds:
-        print("No builds found!")
-        sys.exit(1)
-
-    # Find the latest valid build
-    build_id = None
-    for b in builds:
-        if b["attributes"].get("processingState") == "VALID" and not b["attributes"].get("expired", False):
-            build_id = b["id"]
-            ver = b["attributes"].get("version", "")
-            print(f"Using build: v{ver} ({build_id})")
-            break
-
-    if not build_id:
-        build_id = builds[0]["id"]
-        print(f"Using build (fallback): {build_id}")
-
-    # Assign build to the external group
-    status, data = asc(conn, jwt, "POST",
-        f"/v1/betaGroups/{group_id}/relationships/builds",
-        {"data": [{"type": "builds", "id": build_id}]})
-    if status in (200, 201, 204):
-        print(f"Build assigned to external group")
-    else:
-        print(f"Build assignment result: {status} (may already be assigned)")
-
-    # Check if tester already exists (in any group)
-    status, data = asc(conn, jwt, "GET", f"/v1/betaTesters?filter[email]={email}")
-    if status == 200 and data.get("data"):
-        tester_id = data["data"][0]["id"]
-        print(f"Tester already exists: {tester_id}")
-        # Add to external group
-        status, data = asc(conn, jwt, "POST",
-            f"/v1/betaGroups/{group_id}/relationships/betaTesters",
-            {"data": [{"type": "betaTesters", "id": tester_id}]})
-        if status in (200, 201, 204):
-            print(f"Added existing tester to external group")
-        else:
-            print(f"Add to group: {status} {json.dumps(data)[:200]}")
-        conn.close()
-        return
-
-    # Create beta tester in the external group
-    attrs = {"email": email}
-    if first_name: attrs["firstName"] = first_name
-    if last_name: attrs["lastName"] = last_name
-
-    status, data = asc(conn, jwt, "POST", "/v1/betaTesters", {
-        "data": {
-            "type": "betaTesters",
-            "attributes": attrs,
-            "relationships": {
-                "betaGroups": {"data": [{"type": "betaGroups", "id": group_id}]}
-            }
-        }
-    })
-
-    if status == 201:
-        tester_id = data["data"]["id"]
-        print(f"Created beta tester: {tester_id} ({email})")
-        print(f"Invitation sent to {email}")
-    else:
-        print(f"Error creating tester: {status} {json.dumps(data, indent=2)}")
-        sys.exit(1)
-
+    print(f"\nCould not add {email} to any group")
+    print("Note: external testers require beta app review approval first.")
+    print("The tester may already be in a group with state=NOT_INVITED (pending review).")
     conn.close()
 
 if __name__ == "__main__":
