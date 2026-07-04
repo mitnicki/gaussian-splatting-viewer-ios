@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Submit build for beta app review + add external tester."""
+"""Submit build for beta app review — creates required metadata first."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -37,7 +37,6 @@ def asc(conn, jwt, method, path, body=None):
 key_id = os.environ.get("ASC_API_KEY_ID", "")
 issuer_id = os.environ.get("ASC_ISSUER_ID", "")
 key_content = os.environ.get("ASC_API_KEY_CONTENT", "")
-email = os.environ.get("BETA_TESTER_EMAIL", "dennis@kroeker.cloud")
 
 jwt = make_jwt(key_id, issuer_id, key_content)
 ctx = ssl.create_default_context()
@@ -56,39 +55,64 @@ build_id = None
 for b in data.get("data", []):
     if b["attributes"].get("processingState") == "VALID" and not b["attributes"].get("expired", False):
         build_id = b["id"]
-        ver = b["attributes"].get("version", "")
-        print(f"Build: v{ver} ({build_id})")
+        print(f"Build: v{b['attributes']['version']} ({build_id})")
         break
 
-# Check beta app review details
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppReviewDetails")
+# Check existing beta app localizations
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppLocalizations")
 if status == 200:
-    if data.get("data"):
-        detail_id = data["data"][0]["id"]
-        print(f"Beta review details exist: {detail_id}")
-    else:
-        # Create beta app review details
-        print("Creating beta app review details...")
-        status2, data2 = asc(conn, jwt, "POST", "/v1/betaAppReviewDetails", {
+    locs = data.get("data", [])
+    if locs:
+        loc_id = locs[0]["id"]
+        print(f"Beta localization exists: {loc_id}")
+        # Update with description
+        status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppLocalizations/{loc_id}", {
             "data": {
-                "type": "betaAppReviewDetails",
+                "type": "betaAppLocalizations",
+                "id": loc_id,
                 "attributes": {
-                    "contactEmail": "dennis@kroeker.cloud",
-                    "contactFirstName": "Dennis",
-                    "contactLastName": "Kröker",
-                    "demoAccountName": "",
-                    "demoAccountPassword": "",
-                    "demoAccountRequired": False,
-                    "notes": "Internal testing app for Gaussian Splatting visualization"
+                    "description": "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal."
+                }
+            }
+        })
+        print(f"Updated description: {status}")
+    else:
+        print("Creating beta app localization...")
+        status, data = asc(conn, jwt, "POST", "/v1/betaAppLocalizations", {
+            "data": {
+                "type": "betaAppLocalizations",
+                "attributes": {
+                    "locale": "en-US",
+                    "description": "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal."
                 },
                 "relationships": {
                     "app": {"data": {"type": "apps", "id": app_id}}
                 }
             }
         })
-        print(f"Create details: {status2} {json.dumps(data2)[:300]}")
+        print(f"Created localization: {status} {json.dumps(data)[:200]}")
+
+# Create beta app review detail
+print("\nCreating beta app review details...")
+status, data = asc(conn, jwt, "GET", f"/v1/betaAppReviewDetails?filter[app]={app_id}")
+if status == 200 and data.get("data"):
+    print(f"Review details exist: {data['data'][0]['id']}")
 else:
-    print(f"Beta review details check: {status} {json.dumps(data)[:300]}")
+    status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewDetails", {
+        "data": {
+            "type": "betaAppReviewDetails",
+            "attributes": {
+                "contactEmail": "dennis@kroeker.cloud",
+                "contactFirstName": "Dennis",
+                "contactLastName": "Kröker",
+                "demoAccountRequired": False
+            },
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app_id}}
+            }
+        }
+    })
+    print(f"Created review details: {status} {json.dumps(data)[:200]}")
 
 # Submit for beta app review
 print("\nSubmitting build for beta app review...")
@@ -100,6 +124,12 @@ status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
         }
     }
 })
-print(f"Beta review submission: {status} {json.dumps(data, indent=2)[:500]}")
+if status == 201:
+    sub_id = data["data"]["id"]
+    state = data["data"]["attributes"].get("betaReviewState", "")
+    print(f"Submitted for review: {sub_id} state={state}")
+    print("Beta app review submitted. External testers will be invited once approved.")
+else:
+    print(f"Submission: {status} {json.dumps(data, indent=2)[:500]}")
 
 conn.close()
