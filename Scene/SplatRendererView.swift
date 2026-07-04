@@ -154,7 +154,7 @@ private struct LoadingOverlay: View {
                 .scaleEffect(animatePulse ? 1.1 : 1.0)
 
             Text("Loading splat…")
-                .font(.headline)
+                .font(.ciH4)
                 .foregroundStyle(.ciTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -179,11 +179,11 @@ private struct ErrorOverlay: View {
                 .foregroundStyle(.ciStatusAmber)
 
             Text("Failed to Load")
-                .font(.headline)
+                .font(.ciH4)
                 .foregroundStyle(.ciTextPrimary)
 
             Text(message)
-                .font(.subheadline)
+                .font(.ciCaption)
                 .foregroundStyle(.ciTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)

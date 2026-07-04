@@ -100,10 +100,10 @@ struct LocalFilePickerView: View {
 
                 VStack(spacing: 6) {
                     Text("Gaussian Splatting Viewer")
-                        .font(.title2.bold())
+                        .font(.ciH3)
                         .foregroundStyle(.ciTextPrimary)
                     Text("Native Metal renderer — .ply / .splat / .spz")
-                        .font(.subheadline)
+                        .font(.ciCaption)
                         .foregroundStyle(.ciTextSecondary)
                 }
 
@@ -178,11 +178,11 @@ struct NoCredentialsView: View {
                     .foregroundStyle(.ciTextSecondary)
 
                 Text("Nextcloud Not Configured")
-                    .font(.title3.bold())
+                    .font(.ciH4)
                     .foregroundStyle(.ciTextPrimary)
 
                 Text("Go to Settings to configure your Nextcloud server URL, username, and app password.")
-                    .font(.subheadline)
+                    .font(.ciCaption)
                     .foregroundStyle(.ciTextSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)

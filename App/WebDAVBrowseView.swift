@@ -107,7 +107,7 @@ struct WebDAVBrowseView: View {
                             Task { await loadDirectory() }
                         } label: {
                             Label(entry.name, systemImage: "folder")
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(.ciTextPrimary)
                         }
                     }
                 }
@@ -129,20 +129,20 @@ struct WebDAVBrowseView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: fileIcon(for: entry))
-                    .foregroundStyle(entry.isSplatFile ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(entry.isSplatFile ? Color.ciAccent : Color.ciTextTertiary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
                         .font(.body)
                     HStack(spacing: 8) {
                         if entry.size > 0 {
                             Text(formatBytes(entry.size))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.ciCaption)
+                                .foregroundStyle(.ciTextSecondary)
                         }
                         if let date = entry.lastModified {
                             Text(date, style: .date)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.ciCaption)
+                                .foregroundStyle(.ciTextSecondary)
                         }
                     }
                 }

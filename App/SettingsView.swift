@@ -45,7 +45,7 @@ struct SettingsView: View {
 
                 if let result = connectionResult {
                     Text(result)
-                        .font(.caption)
+                        .font(.ciCaption)
                         .foregroundStyle(result.starts(with: "✓") ? Color.ciStatusGreen : Color.ciStatusRed)
                 }
             }
@@ -58,8 +58,8 @@ struct SettingsView: View {
 
             Section("How to get an app password") {
                 Text("1. Open your Nextcloud in a browser\n2. Go to Settings → Security\n3. Under 'Devices & sessions', enter a name (e.g. 'Splat Viewer')\n4. Click 'Create new app password'\n5. Copy the password here")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.ciCaption)
+                    .foregroundStyle(.ciTextSecondary)
             }
         }
         .navigationTitle("Settings")
