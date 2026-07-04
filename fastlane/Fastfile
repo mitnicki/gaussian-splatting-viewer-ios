@@ -36,13 +36,12 @@ platform :ios do
     )
 
     # Create/get App Store distribution provisioning profile
-    sigh(
+    profile_path = sigh(
       api_key: api_key,
       app_identifier: app_id
     )
-
-    profile_uuid = ENV["SIGH_UDID"]
-    profile_path = ENV["SIGH_PROFILE_PATH"]
+    UI.important("Profile path: #{profile_path}")
+    UI.user_error!("No provisioning profile path returned from sigh") if profile_path.nil? || profile_path.empty?
 
     # Keychain: unlock + set partition list so codesign (and IDEDistribution
     # if ever used) can access the private key without a GUI prompt.
