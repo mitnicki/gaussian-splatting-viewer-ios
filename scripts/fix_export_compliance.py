@@ -67,7 +67,8 @@ if status == 200 and data.get("data"):
                 "contactEmail": "dennis@kroeker.cloud",
                 "contactFirstName": "Dennis",
                 "contactLastName": "Kröker",
-                "demoAccountRequired": False
+                "demoAccountRequired": False,
+                "contactPhone": "+49 1234 567890"
             }
         }
     })
