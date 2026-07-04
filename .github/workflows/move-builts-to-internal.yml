@@ -3,6 +3,7 @@ name: Move Builds to Internal Group
 on:
   push:
     branches: [beta/move-builds]
+  workflow_dispatch:
 
 jobs:
   move:
