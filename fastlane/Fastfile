@@ -57,7 +57,7 @@ platform :ios do
       app_identifier: app_id
     )
 
-    profile_path = ENV["SIGH_PROFILE_PATH"]
+    profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
     profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
 
     Dir.chdir(REPO_ROOT) do
