@@ -55,7 +55,6 @@ struct SplatRendererView: View {
             }
         }
         .tint(.ciAccent)
-        }
         .animation(.easeInOut(duration: 0.25), value: loadState)
         .task(id: url) {
             loadState = .loading
