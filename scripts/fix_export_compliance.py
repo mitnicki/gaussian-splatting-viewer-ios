@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fix export compliance + beta app localization + submit for beta review."""
+"""Fix export compliance + beta app localization + beta build localization + submit for beta review."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -49,19 +49,18 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# 1. Ensure betaAppLocalizations exist with all required fields
+# 1. Ensure betaAppLocalizations with feedbackEmail
 desc = "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal."
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppLocalizations")
-print(f"\nBeta localizations: status={status} count={len(data.get('data', []))}")
+print(f"\n=== Beta App Localizations ===")
+print(f"Status: {status}, Count: {len(data.get('data', []))}")
 if status == 200:
     locs = data.get("data", [])
     if locs:
         for loc in locs:
             loc_id = loc["id"]
             attrs = loc["attributes"]
-            locale = attrs.get("locale", "")
-            print(f"  {locale}: desc={len(attrs.get('description',''))} chars, feedbackEmail={attrs.get('feedbackEmail','')}")
-            # Update with all required fields
+            print(f"  {attrs.get('locale','')}: feedbackEmail={attrs.get('feedbackEmail','')}")
             status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppLocalizations/{loc_id}", {
                 "data": {
                     "type": "betaAppLocalizations",
@@ -74,7 +73,7 @@ if status == 200:
             })
             print(f"  Updated: {status}")
     else:
-        print("  No localizations — creating en-US")
+        print("  Creating en-US localization")
         status, data = asc(conn, jwt, "POST", "/v1/betaAppLocalizations", {
             "data": {
                 "type": "betaAppLocalizations",
@@ -86,12 +85,14 @@ if status == 200:
                 "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}
             }
         })
-        print(f"  Created: {status} {json.dumps(data)[:200]}")
+        print(f"  Created: {status}")
 
-# 2. Fix export compliance on all builds + submit for review
+# 2. Get builds + fix export compliance + add betaBuildLocalizations
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
 builds = data.get("data", [])
-print(f"\nBuilds: {len(builds)}")
+print(f"\n=== Builds: {len(builds)} ===")
+
+whats_new = "Initial beta release. Browse and render 3D Gaussian Splat scenes from Nextcloud via WebDAV."
 
 for b in builds:
     build_id = b["id"]
@@ -99,7 +100,7 @@ for b in builds:
     expired = b["attributes"].get("expired", False)
     processing = b["attributes"].get("processingState", "")
     non_exempt = b["attributes"].get("usesNonExemptEncryption", None)
-    print(f"\n  v{version} ({build_id}): expired={expired} state={processing} usesNonExemptEncryption={non_exempt}")
+    print(f"\nv{version} ({build_id}): expired={expired} state={processing} usesNonExemptEncryption={non_exempt}")
 
     if expired or processing != "VALID":
         continue
@@ -114,22 +115,48 @@ for b in builds:
                 "attributes": {"usesNonExemptEncryption": False}
             }
         })
-        print(f"  PATCH result: {status}")
-        if status == 200:
-            print(f"  usesNonExemptEncryption set to: {data['data']['attributes'].get('usesNonExemptEncryption')}")
+        print(f"  Result: {status}")
+
+    # Add betaBuildLocalizations (What's New)
+    status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaBuildLocalizations")
+    print(f"  betaBuildLocalizations: status={status} count={len(data.get('data', []))}")
+    if status == 200:
+        existing_locs = data.get("data", [])
+        if not existing_locs:
+            print(f"  Creating betaBuildLocalization (en-US)...")
+            status, data = asc(conn, jwt, "POST", "/v1/betaBuildLocalizations", {
+                "data": {
+                    "type": "betaBuildLocalizations",
+                    "attributes": {"locale": "en-US", "whatsNew": whats_new},
+                    "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}
+                }
+            })
+            print(f"  Created: {status} {json.dumps(data)[:200]}")
         else:
-            print(f"  Error: {json.dumps(data)[:300]}")
+            for bl in existing_locs:
+                bl_id = bl["id"]
+                locale = bl["attributes"].get("locale", "")
+                print(f"  Updating {locale}...")
+                status, data = asc(conn, jwt, "PATCH", f"/v1/betaBuildLocalizations/{bl_id}", {
+                    "data": {
+                        "type": "betaBuildLocalizations",
+                        "id": bl_id,
+                        "attributes": {"whatsNew": whats_new}
+                    }
+                })
+                print(f"  Updated: {status}")
 
     # Check existing beta review submission
     status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmission")
+    print(f"  Existing submission: status={status} data={json.dumps(data)[:200]}")
     if status == 200 and data.get("data"):
         state = data["data"]["attributes"].get("betaReviewState", "")
-        print(f"  Existing submission: state={state}")
+        print(f"    state={state}")
         if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"):
-            print(f"  Already submitted — skipping")
+            print(f"    Already submitted — skipping")
             continue
-    else:
-        print(f"  No existing submission (status={status})")
+    elif status == 404:
+        print(f"    No existing submission (404)")
 
     # Submit for beta review
     print(f"  Submitting for beta review...")
