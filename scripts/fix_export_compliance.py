@@ -54,66 +54,104 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
 builds = data.get("data", [])
 print(f"\nBuilds: {len(builds)}")
 
+# Get the latest valid, non-expired build
+latest_build = None
 for b in builds:
     build_id = b["id"]
     version = b["attributes"]["version"]
     expired = b["attributes"].get("expired", False)
     processing = b["attributes"].get("processingState", "")
-    non_exempt = b["attributes"].get("usesNonEncryptionExempt", None)
-    print(f"  v{version} ({build_id}): expired={expired} state={processing} nonExempt={non_exempt}")
+    print(f"  v{version} ({build_id}): expired={expired} state={processing}")
+    if not expired and processing == "VALID":
+        latest_build = b
 
-    if expired or processing != "VALID":
-        continue
+if not latest_build:
+    print("No valid build found!")
+    sys.exit(1)
 
-    # Patch build to set export compliance
-    if non_exempt is None:
-        print(f"  Patching v{version} for export compliance...")
-        status, data = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}", {
-            "data": {
-                "type": "builds",
-                "id": build_id,
-                "attributes": {
-                    "usesNonEncryptionExempt": True
-                }
+build_id = latest_build["id"]
+version = latest_build["attributes"]["version"]
+print(f"\nUsing build v{version} ({build_id})")
+
+# 1. Try to set export compliance via exportCompliances endpoint
+print("\n--- Setting export compliance ---")
+status, data = asc(conn, jwt, "POST", "/v1/exportCompliances", {
+    "data": {
+        "type": "exportCompliances",
+        "attributes": {
+            "usesEncryption": False,
+            "doesnTUseEncryption": True
+        },
+        "relationships": {
+            "build": {"data": {"type": "builds", "id": build_id}}
+        }
+    }
+})
+print(f"POST exportCompliances: {status}")
+if status == 201:
+    print("Export compliance created!")
+elif status == 409:
+    # Maybe already exists, try GET
+    print(f"409: {json.dumps(data)[:300]}")
+    # Try PATCH on build's exportCompliance relationship
+    status2, data2 = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/exportCompliance")
+    print(f"GET exportCompliance: {status2} {json.dumps(data2)[:300]}")
+else:
+    print(f"Error: {json.dumps(data)[:400]}")
+
+# 2. Also try PATCH on build directly with exportCompliance attribute
+print("\n--- PATCH build with exportCompliance ---")
+status, data = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}", {
+    "data": {
+        "type": "builds",
+        "id": build_id,
+        "attributes": {
+            "exportCompliance": {
+                "usesEncryption": False,
+                "doesnTUseEncryption": True
             }
-        })
-        print(f"  Result: {status}")
-        if status != 200:
-            print(f"  Error: {json.dumps(data)[:300]}")
-        else:
-            print(f"  Export compliance set: usesNonEncryptionExempt=True")
+        }
+    }
+})
+print(f"PATCH build: {status}")
+if status == 200:
+    print("Export compliance set via build PATCH!")
+    ec = data.get("data", {}).get("attributes", {}).get("exportCompliance", {})
+    print(f"  exportCompliance: {ec}")
+else:
+    print(f"Error: {json.dumps(data)[:400]}")
+    # Try alternative: PATCH with relationship
+    status2, data2 = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}/relationships/exportCompliance", {
+        "data": {"type": "exportCompliances", "id": "current"}
+    })
+    print(f"PATCH relationship: {status2} {json.dumps(data2)[:300]}")
 
-    # Check existing beta review submissions
-    status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmissions")
-    existing = data.get("data", [])
-    already_submitted = False
-    if existing:
-        for s in existing:
-            state = s["attributes"].get("betaReviewState", "")
-            print(f"  Existing submission: {s['id']} state={state}")
-            if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"):
-                already_submitted = True
+# 3. Check existing beta review submissions
+print("\n--- Beta review submissions ---")
+status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmissions")
+print(f"Existing: {status} {json.dumps(data)[:300]}")
 
-    if not already_submitted and not expired and processing == "VALID":
-        print(f"  Submitting v{version} for beta review...")
-        status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
-            "data": {
-                "type": "betaAppReviewSubmissions",
-                "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}
-            }
-        })
-        if status == 201:
-            state = data["data"]["attributes"].get("betaReviewState", "")
-            print(f"  SUCCESS: Submitted! state={state}")
-        elif status == 422:
-            err = data.get("errors", [{}])[0].get("detail", "")
-            print(f"  422: {err}")
-        elif status == 409:
-            print(f"  409: Already submitted")
-        else:
-            print(f"  {status}: {json.dumps(data)[:300]}")
+# 4. Submit for beta review
+print("\n--- Submitting for beta review ---")
+status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
+    "data": {
+        "type": "betaAppReviewSubmissions",
+        "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}
+    }
+})
+print(f"Submit: {status}")
+if status == 201:
+    state = data["data"]["attributes"].get("betaReviewState", "")
+    print(f"SUCCESS! state={state}")
+elif status == 422:
+    err = data.get("errors", [{}])[0].get("detail", "")
+    print(f"422: {err}")
+elif status == 409:
+    print(f"409: Already submitted")
+else:
+    print(f"Error: {json.dumps(data)[:400]}")
 
-# Final status: list all beta testers
+# 5. List beta testers
 print("\n=== Beta Testers ===")
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups?include=betaTesters")
 groups = data.get("data", [])
