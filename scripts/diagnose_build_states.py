@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnose build states — find what blocks internal group assignment."""
+"""Diagnose build states — extended version."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -51,32 +51,40 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# Builds
-status, data = asc(conn, jwt, "GET",
-    f"/v1/apps/{app_id}/builds?limit=10&fields[builds]=version,processingState,buildAudienceType,usesNonExemptEncryption,exportComplianceState,betaAppReviewSubmission,icons,minSdkVersion,uploadedDate,expired")
+# GET ALL BUILDS (no fields filter, get everything)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
+print(f"\nAll builds ({status}): {len(data.get('data',[]))} found")
 for b in data.get("data", []):
     a = b["attributes"]
-    print(f"\nBuild {a.get('version','?')} ({b['id']}):")
-    for k, v in sorted(a.items()):
-        print(f"  {k}: {v}")
-
-# Export compliance for each build
-for b in data.get("data", []):
     bid = b["id"]
-    status, ed = asc(conn, jwt, "GET", f"/v1/builds/{bid}/exportCompliance")
-    print(f"\nBuild {b['attributes']['version']} exportCompliance ({status}):")
-    print(f"  {json.dumps(ed)[:300]}")
+    ver = a.get("version", "?")
+    proc = a.get("processingState", "?")
+    aud = a.get("buildAudienceType", "?")
+    expired = a.get("expired", "?")
+    uploaded = a.get("uploadedDate", "?")
+    print(f"  Build {ver} ({bid}): proc={proc} audience={aud} expired={expired} uploaded={uploaded}")
 
-# Internal group builds
+# Check what builds are in each group
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
 for g in data.get("data", []):
     gid = g["id"]
     name = g["attributes"]["name"]
     is_int = g["attributes"].get("isInternalGroup", False)
-    if is_int:
-        status2, bd = asc(conn, jwt, "GET", f"/v1/betaGroups/{gid}/builds?limit=10&fields[builds]=version,processingState")
-        print(f"\n=== Internal Group '{name}' builds ===")
-        for b in bd.get("data", []):
-            print(f"  Build {b['attributes'].get('version','?')} ({b['id']}) state={b['attributes'].get('processingState','?')}")
+    status2, bd = asc(conn, jwt, "GET", f"/v1/betaGroups/{gid}/builds?limit=10")
+    blist = [f"B{b['attributes'].get('version','?')}" for b in bd.get("data", [])]
+    print(f"  Group '{name}' (internal={is_int}): {', '.join(blist) if blist else 'empty'}")
+
+print("\nExport compliance for each build:")
+for b in data.get("data", []):
+    bid = b["id"]
+    ver = b["attributes"].get("version", "?")
+    # GET export compliance directly on build
+    status, ed = asc(conn, jwt, "GET", f"/v1/builds/{bid}")
+    a = ed.get("data", {}).get("attributes", {})
+    enc = a.get("usesNonExemptEncryption", "N/A")
+    ecs = a.get("exportComplianceState", "N/A")
+    pst = a.get("processingState", "N/A")
+    bt = a.get("betaAppReviewSubmissionState", "N/A")
+    print(f"  Build {ver}: enc={enc} ecState={ecs} procState={pst} betaReviewState={bt}")
 
 conn.close()
