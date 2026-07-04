@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move all existing builds to the internal beta group (no beta review needed)."""
+"""Move VALID builds (not INVALID) to the internal beta group."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -39,82 +39,66 @@ def asc(conn, jwt, method, path, body=None):
     return resp.status, data
 
 
-def main():
-    key_id = os.environ.get("ASC_API_KEY_ID", "")
-    issuer_id = os.environ.get("ASC_ISSUER_ID", "")
-    key_content = os.environ.get("ASC_API_KEY_CONTENT", "")
+key_id = os.environ["ASC_API_KEY_ID"]
+issuer_id = os.environ["ASC_ISSUER_ID"]
+key_content = os.environ["ASC_API_KEY_CONTENT"]
+jwt = make_jwt(key_id, issuer_id, key_content)
+ctx = ssl.create_default_context()
+conn = http.client.HTTPSConnection("api.appstoreconnect.apple.com", context=ctx)
 
-    if not all([key_id, issuer_id, key_content]):
-        print("Missing required env vars: ASC_API_KEY_ID, ASC_ISSUER_ID, ASC_API_KEY_CONTENT")
-        sys.exit(1)
+bundle_id = "cloud.dkroeker.GaussianSplattingViewer"
+status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
+app_id = data["data"][0]["id"]
+print(f"App: {app_id}")
 
-    jwt = make_jwt(key_id, issuer_id, key_content)
-    ctx = ssl.create_default_context()
-    conn = http.client.HTTPSConnection("api.appstoreconnect.apple.com", context=ctx)
+# Get all builds
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
+builds = data.get("data", [])
 
-    # Find app
-    bundle_id = "cloud.dkroeker.GaussianSplattingViewer"
-    status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
-    if status != 200 or not data.get("data"):
-        print(f"App not found: {status} {json.dumps(data)[:200]}")
-        sys.exit(1)
-    app_id = data["data"][0]["id"]
-    print(f"App: {app_id}")
+# Get internal group ID
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
+internal_id = None
+for g in data.get("data", []):
+    if g["attributes"].get("isInternalGroup"):
+        internal_id = g["id"]
+        print(f"Internal group: {g['attributes']['name']} ({internal_id})")
+        break
 
-    # Get all beta groups
-    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
-    if status != 200:
-        print(f"Failed to get beta groups: {status} {json.dumps(data)[:200]}")
-        sys.exit(1)
-    groups = data.get("data", [])
+if not internal_id:
+    print("No internal group found!")
+    sys.exit(1)
 
-    internal_group = None
-    for g in groups:
-        name = g["attributes"]["name"]
-        is_internal = g["attributes"].get("isInternalGroup", False)
-        print(f"Group: {name} ({g['id']}) internal={is_internal}")
-        if is_internal:
-            internal_group = g
+# Move only VALID builds that aren't already in internal group
+moved = []
+skipped = []
+for b in builds:
+    ver = b["attributes"].get("version", "?")
+    bid = b["id"]
+    proc = b["attributes"].get("processingState", "?")
+    if proc == "VALID":
+        moved.append({"type": "builds", "id": bid})
+        print(f"  Build {ver} ({bid}): VALID → will move to internal group")
+    else:
+        skipped.append((ver, bid, proc))
+        print(f"  Build {ver} ({bid}): {proc} → SKIPPED")
 
-    if not internal_group:
-        print("No internal beta group found — cannot proceed")
-        sys.exit(1)
-
-    internal_id = internal_group["id"]
-    print(f"\nInternal group ID: {internal_id} — '{internal_group['attributes']['name']}'")
-
-    # Get all builds
-    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
-    if status != 200:
-        print(f"Failed to get builds: {status} {json.dumps(data)[:200]}")
-        sys.exit(1)
-
-    builds = data.get("data", [])
-    print(f"\nFound {len(builds)} builds:")
-
-    for b in builds:
-        bv = b["attributes"].get("version", "?")
-        bnum = b["attributes"].get("uploadedDate", "?")
-        print(f"  Build {bv} ({b['id']}) uploaded {bnum}")
-
-    if not builds:
-        print("No builds to process")
-        sys.exit(0)
-
-    # Add all builds to internal group
-    print(f"\nAdding {len(builds)} build(s) to internal group...")
+if moved:
+    print(f"\nMoving {len(moved)} build(s) to internal group...")
     status, data = asc(conn, jwt, "POST",
         f"/v1/betaGroups/{internal_id}/relationships/builds",
-        {"data": [{"type": "builds", "id": b["id"]} for b in builds]})
-
+        {"data": moved})
     if status in (200, 201, 204):
-        print(f"SUCCESS: All builds added to internal group '{internal_group['attributes']['name']}'")
-        print("Dennis can now see all builds immediately in TestFlight.")
+        print(f"SUCCESS: {len(moved)} build(s) added to internal group!")
+        for m in moved:
+            print(f"  Build {m['id']} — now in Internal Testers group")
     else:
-        print(f"FAILED: status={status} {json.dumps(data)[:300]}")
+        print(f"FAILED: {status} {json.dumps(data)[:300]}")
+else:
+    print("No VALID builds to move.")
 
-    conn.close()
+if skipped:
+    print(f"\nSkipped {len(skipped)} non-VALID build(s):")
+    for ver, bid, state in skipped:
+        print(f"  Build {ver} ({bid}): {state}")
 
-
-if __name__ == "__main__":
-    main()
+conn.close()
