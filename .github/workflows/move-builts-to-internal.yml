@@ -1,0 +1,22 @@
+name: Move Builds to Internal Group
+
+on:
+  push:
+    branches: [beta/move-builds]
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cryptography
+        run: pip install cryptography
+      - name: Move builds to internal beta group
+        run: python3 scripts/move_builds_to_internal.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
