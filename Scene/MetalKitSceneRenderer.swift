@@ -93,20 +93,6 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         // the array + the GPU buffer copy). For a 1.1 GB .ply with 4.48M
         // splats, this cuts peak memory from ~2 GB to ~1.1 GB.
         let reader = try AutodetectSceneReader(url)
-        let chunk = try await Self.loadChunkStreaming(device: device, reader: reader)
-        await splat.addChunk(chunk)
-        modelRenderer = splat
-        loadedURL = url
-    }
-
-    /// Streams splat batches from the reader directly into a MetalBuffer,
-    /// avoiding the double-buffering of readAll() (which collects all points
-    /// into a Swift array before creating GPU buffers).
-    private static func loadChunkStreaming(device: MTLDevice, reader: SplatSceneReader) async throws -> SplatChunk {
-        // ponytail: SplatChunk(device:from:) requires [SplatPoint], but readAll()
-        // double-buffers: Swift array + GPU buffer both alive during copy.
-        // We stream batches into MetalBuffer directly, then build SplatChunk
-        // from the pre-filled buffer. Same result, half the peak memory.
         let splatBuffer = try MetalBuffer<EncodedSplatPoint>(device: device, capacity: 65536)
         var shBuffer: MetalBuffer<Float16>?
         var shDegree: SHDegree = .sh0
@@ -145,11 +131,10 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
             }
         }
 
-        return SplatChunk(
-            splats: splatBuffer,
-            shCoefficients: shBuffer,
-            shDegree: shDegree
-        )
+        let chunk = SplatChunk(splats: splatBuffer, shCoefficients: shBuffer, shDegree: shDegree)
+        await splat.addChunk(chunk)
+        modelRenderer = splat
+        loadedURL = url
     }
 
     private var viewport: ModelRendererViewportDescriptor {
