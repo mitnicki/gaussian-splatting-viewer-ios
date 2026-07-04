@@ -53,3 +53,28 @@ extension Color {
         )
     }
 }
+
+// MARK: - ShapeStyle conformance
+// Allows .ciAccent, .ciBgBase, etc. in .foregroundStyle() / .background() modifiers.
+
+extension ShapeStyle where Self == Color {
+    static var ciBgBase: Color { .ciBgBase }
+    static var ciBgDeep: Color { .ciBgDeep }
+    static var ciBgPanel: Color { .ciBgPanel }
+    static var ciBgElevated: Color { .ciBgElevated }
+    static var ciBgHover: Color { .ciBgHover }
+    static var ciTextPrimary: Color { .ciTextPrimary }
+    static var ciTextSecondary: Color { .ciTextSecondary }
+    static var ciTextTertiary: Color { .ciTextTertiary }
+    static var ciAccent: Color { .ciAccent }
+    static var ciAccentBright: Color { .ciAccentBright }
+    static var ciAccentViolet: Color { .ciAccentViolet }
+    static var ciAccentGlow: Color { .ciAccentGlow }
+    static var ciAccentSoft: Color { .ciAccentSoft }
+    static var ciStatusGreen: Color { .ciStatusGreen }
+    static var ciStatusAmber: Color { .ciStatusAmber }
+    static var ciStatusRed: Color { .ciStatusRed }
+    static var ciBorderSubtle: Color { .ciBorderSubtle }
+    static var ciBorderStandard: Color { .ciBorderStandard }
+    static var ciBorderBright: Color { .ciBorderBright }
+}
