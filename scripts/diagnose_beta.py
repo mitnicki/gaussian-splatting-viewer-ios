@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnose beta testing setup."""
+"""Submit build for beta app review to enable external testers."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -42,7 +42,39 @@ data = json.loads(resp.read().decode())
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# List beta groups
+# Get builds
+conn.request("GET", f"/v1/apps/{app_id}/builds?limit=5",
+             headers={"Authorization": f"Bearer {jwt}"})
+resp = conn.getresponse()
+data = json.loads(resp.read().decode())
+for b in data.get("data", []):
+    bid = b["id"]
+    ver = b["attributes"].get("version", "")
+    expired = b["attributes"].get("expired", False)
+    processing = b["attributes"].get("processingState", "")
+    print(f"Build v{ver} ({bid}): expired={expired} processing={processing}")
+    
+    # Check beta review status
+    conn.request("GET", f"/v1/builds/{bid}/betaBuildUsagesV1",
+                 headers={"Authorization": f"Bearer {jwt}"})
+    resp2 = conn.getresponse()
+    raw = resp2.read().decode()
+    if raw.strip():
+        review_data = json.loads(raw)
+        print(f"  Beta review: {json.dumps(review_data)[:300]}")
+    
+    # Check if build has beta app review submission
+    conn.request("GET", f"/v1/builds/{bid}/betaBuildReviewSubmissions",
+                 headers={"Authorization": f"Bearer {jwt}"})
+    resp3 = conn.getresponse()
+    raw3 = resp3.read().decode()
+    if raw3.strip():
+        sub_data = json.loads(raw3)
+        print(f"  Review submissions: {json.dumps(sub_data)[:300]}")
+    else:
+        print(f"  Review submissions: (empty)")
+
+# Also check the beta group details
 conn.request("GET", f"/v1/apps/{app_id}/betaGroups",
              headers={"Authorization": f"Bearer {jwt}"})
 resp = conn.getresponse()
@@ -51,59 +83,16 @@ for g in data.get("data", []):
     gid = g["id"]
     name = g["attributes"].get("name", "")
     is_internal = g["attributes"].get("isInternalGroup", False)
-    print(f"\nGroup: {name} ({gid}) internal={is_internal}")
+    has_access = g["attributes"].get("hasAccessToAllBuilds", False)
+    print(f"\nGroup: {name} ({gid}) internal={is_internal} hasAccessToAllBuilds={has_access}")
     
-    # List testers in this group
-    conn.request("GET", f"/v1/betaGroups/{gid}/betaTesters",
+    # Get builds for this group
+    conn.request("GET", f"/v1/betaGroups/{gid}/relationships/builds",
                  headers={"Authorization": f"Bearer {jwt}"})
     resp2 = conn.getresponse()
-    data2 = json.loads(resp2.read().decode())
-    for t in data2.get("data", []):
-        email = t["attributes"].get("email", "")
-        state = t["attributes"].get("state", "")
-        first = t["attributes"].get("firstName", "")
-        last = t["attributes"].get("lastName", "")
-        print(f"  Tester: {first} {last} <{email}> state={state}")
-
-    # List builds in this group
-    conn.request("GET", f"/v1/betaGroups/{gid}/builds",
-                 headers={"Authorization": f"Bearer {jwt}"})
-    resp3 = conn.getresponse()
-    data3 = json.loads(resp3.read().decode())
-    for b in data3.get("data", []):
-        ver = b["attributes"].get("version", "")
-        expired = b["attributes"].get("expired", False)
-        processing = b["attributes"].get("processingState", "")
-        print(f"  Build: v{ver} expired={expired} processing={processing}")
-
-# Try creating tester with dennis@kroeker.cloud and print full error
-print("\n--- Attempting to create tester dennis@kroeker.cloud ---")
-create_body = {
-    "data": {
-        "type": "betaTesters",
-        "attributes": {"email": "dennis@kroeker.cloud", "firstName": "Dennis", "lastName": "Kröker"},
-        "relationships": {
-            "betaGroups": {"data": [{"type": "betaGroups", "id": data["data"][0]["id"]}]}
-        }
-    }
-}
-conn.request("POST", "/v1/betaTesters",
-             body=json.dumps(create_body),
-             headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"})
-resp = conn.getresponse()
-body = resp.read().decode()
-print(f"Status: {resp.status}")
-print(f"Response: {body[:1000]}")
-
-# Also try without group
-print("\n--- Without group ---")
-create_body["data"]["relationships"] = {}
-conn.request("POST", "/v1/betaTesters",
-             body=json.dumps(create_body),
-             headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"})
-resp = conn.getresponse()
-body = resp.read().decode()
-print(f"Status: {resp.status}")
-print(f"Response: {body[:1000]}")
+    raw2 = resp2.read().decode()
+    if raw2.strip():
+        builds_data = json.loads(raw2)
+        print(f"  Builds: {json.dumps(builds_data)[:300]}")
 
 conn.close()
