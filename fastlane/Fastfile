@@ -32,6 +32,8 @@ platform :ios do
     sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}.keychain-db")
     sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}.keychain-db")
     sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}.keychain-db")
+    # Add temp keychain to the search list so cert() can import into it
+    sh("security list-keychains -d user -s #{KEYCHAIN_NAME}.keychain-db login.keychain-db")
 
     # Create/get distribution certificate in the temp keychain
     cert(
@@ -57,8 +59,8 @@ platform :ios do
       app_identifier: app_id
     )
 
-    profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH]
-    profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
+    profile_path = lane_context[SharedValues::SIGH_PROFILE_PATH] || ENV["SIGH_PROFILE_PATH"]
+    profile_name = lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"] || "#{app_id} AppStore"
 
     Dir.chdir(REPO_ROOT) do
       archive_path = "build/GaussianSplattingViewer.xcarchive"
