@@ -83,16 +83,17 @@ for b in builds:
         print(f"  Build {ver} ({bid}): {proc} → SKIPPED")
 
 if moved:
-    print(f"\nMoving {len(moved)} build(s) to internal group...")
-    status, data = asc(conn, jwt, "POST",
-        f"/v1/betaGroups/{internal_id}/relationships/builds",
-        {"data": moved})
-    if status in (200, 201, 204):
-        print(f"SUCCESS: {len(moved)} build(s) added to internal group!")
-        for m in moved:
-            print(f"  Build {m['id']} — now in Internal Testers group")
-    else:
-        print(f"FAILED: {status} {json.dumps(data)[:300]}")
+    print(f"\nMoving {len(moved)} build(s) to internal group one at a time...")
+    for m in moved:
+        bver = m.get("version_hint", m["id"])
+        status, resp_data = asc(conn, jwt, "POST",
+            f"/v1/betaGroups/{internal_id}/relationships/builds",
+            {"data": [{"type": "builds", "id": m["id"]}]})
+        if status in (200, 201, 204):
+            print(f"  ✅ Build {m['id']} — added to internal group")
+        else:
+            detail = resp_data.get("errors", [{}])[0].get("detail", str(resp_data)[:100])
+            print(f"  ❌ Build {m['id']} — FAILED: {detail}")
 else:
     print("No VALID builds to move.")
 
