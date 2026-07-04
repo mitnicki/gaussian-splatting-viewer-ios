@@ -58,20 +58,20 @@ for b in data.get("data", []):
         print(f"Build: v{b['attributes']['version']} ({build_id})")
         break
 
-# 1. Create beta app localization (description)
+# 1. Ensure beta app localization exists
 desc = "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal."
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppLocalizations")
+print(f"Beta localizations: status={status} count={len(data.get('data', []))}")
 if status == 200:
     locs = data.get("data", [])
     if locs:
         loc_id = locs[0]["id"]
-        print(f"Beta localization exists: {loc_id}")
+        print(f"  Existing: {loc_id}")
         status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppLocalizations/{loc_id}", {
             "data": {"type": "betaAppLocalizations", "id": loc_id, "attributes": {"description": desc}}
         })
-        print(f"Updated description: {status}")
+        print(f"  Updated: {status}")
     else:
-        print("Creating beta app localization...")
         status, data = asc(conn, jwt, "POST", "/v1/betaAppLocalizations", {
             "data": {
                 "type": "betaAppLocalizations",
@@ -79,31 +79,33 @@ if status == 200:
                 "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}
             }
         })
-        print(f"Created localization: {status} {json.dumps(data)[:200]}")
-else:
-    print(f"Get localizations failed: {status} {json.dumps(data)[:200]}")
+        print(f"  Created: {status} {json.dumps(data)[:200]}")
 
-# 2. Create beta app review detail
-status, data = asc(conn, jwt, "GET", f"/v1/betaAppReviewDetails?filter[app]={app_id}")
-if status == 200 and data.get("data"):
-    rad = data["data"][0]
-    rad_id = rad["id"]
-    print(f"Review details exist: {rad_id}")
-    # Update with contact info
-    status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppReviewDetails/{rad_id}", {
-        "data": {
-            "type": "betaAppReviewDetails", "id": rad_id,
-            "attributes": {
-                "contactEmail": "dennis@kroeker.cloud",
-                "contactFirstName": "Dennis",
-                "contactLastName": "Kröker",
-                "demoAccountRequired": False
+# 2. Ensure beta app review details exist
+# Get via app relationship (not filter)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppReviewDetails")
+print(f"\nBeta review details (via relationship): status={status}")
+if status == 200:
+    if data.get("data"):
+        rad_id = data["data"][0]["id"]
+        print(f"  Exists: {rad_id}")
+        status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppReviewDetails/{rad_id}", {
+            "data": {
+                "type": "betaAppReviewDetails", "id": rad_id,
+                "attributes": {
+                    "contactEmail": "dennis@kroeker.cloud",
+                    "contactFirstName": "Dennis",
+                    "contactLastName": "Kröker",
+                    "demoAccountRequired": False
+                }
             }
-        }
-    })
-    print(f"Updated review details: {status}")
+        })
+        print(f"  Updated: {status}")
+    else:
+        print("  No data returned")
 else:
-    print("Creating beta app review details...")
+    # Create
+    print("  Creating...")
     status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewDetails", {
         "data": {
             "type": "betaAppReviewDetails",
@@ -116,13 +118,25 @@ else:
             "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}
         }
     })
-    print(f"Created review details: {status} {json.dumps(data)[:200]}")
+    print(f"  Created: {status} {json.dumps(data)[:300]}")
+
+# 3. Check existing beta review submissions for this build
+status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmissions")
+print(f"\nExisting submissions: status={status}")
+if status == 200 and data.get("data"):
+    for s in data["data"]:
+        state = s["attributes"].get("betaReviewState", "")
+        print(f"  Submission: {s['id']} state={state}")
+        if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"):
+            print("  Already submitted — skipping")
+            conn.close()
+            sys.exit(0)
 
 # Wait for propagation
 print("\nWaiting 10s for ASC propagation...")
 time.sleep(10)
 
-# 3. Submit for beta app review (with retries)
+# 4. Submit for beta app review
 print("\nSubmitting build for beta app review...")
 for attempt in range(3):
     status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
@@ -134,18 +148,23 @@ for attempt in range(3):
     if status == 201:
         sub_id = data["data"]["id"]
         state = data["data"]["attributes"].get("betaReviewState", "")
-        print(f"Submitted for review: {sub_id} state={state}")
-        print("Beta app review submitted successfully.")
-        print("External testers will be invited automatically once approved (usually <24h).")
+        print(f"Submitted: {sub_id} state={state}")
+        print("SUCCESS — Beta app review submitted.")
+        print("External testers will be invited automatically once approved (~24h).")
         break
+    elif status == 422:
+        err_detail = ""
+        if data.get("errors"):
+            err_detail = data["errors"][0].get("detail", "")
+        print(f"Attempt {attempt+1}: 422 — {err_detail}")
+        if attempt < 2:
+            print("Waiting 15s...")
+            time.sleep(15)
     elif status == 409:
-        # Already submitted
-        print(f"Already submitted for review: {status}")
+        print(f"Already submitted: {json.dumps(data)[:200]}")
         break
     else:
         print(f"Attempt {attempt+1}: {status} {json.dumps(data)[:300]}")
-        if attempt < 2:
-            print("Waiting 10s before retry...")
-            time.sleep(10)
+        break
 
 conn.close()
