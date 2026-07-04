@@ -1,7 +1,6 @@
 // SplatRendererView.swift
-// SwiftUI wrapper that adds loading / error states around MetalKitSceneView.
-// M2.3: UX polish — shows a spinner while the splat file is being parsed
-// and an error overlay if loading fails, instead of a blank black screen.
+// SwiftUI wrapper that adds loading / error states around MetalKitSceneView,
+// plus a floating control overlay (auto-rotate toggle, reset, gesture hints).
 
 #if os(iOS)
 
@@ -11,6 +10,9 @@ struct SplatRendererView: View {
     let url: URL?
 
     @State private var loadState: LoadState = .loading
+    @State private var renderer: MetalKitSceneRenderer?
+    @State private var autoRotate: Bool = false
+    @State private var showControls: Bool = true
 
     private enum LoadState: Equatable {
         case loading
@@ -20,14 +22,26 @@ struct SplatRendererView: View {
 
     var body: some View {
         ZStack {
-            MetalKitSceneView(url: url) { error in
-                if let error {
-                    loadState = .error(error.localizedDescription)
-                } else {
-                    loadState = .ready
+            MetalKitSceneView(
+                url: url,
+                onLoadComplete: { error in
+                    if let error {
+                        loadState = .error(error.localizedDescription)
+                    } else {
+                        loadState = .ready
+                    }
+                },
+                onRendererReady: { r in
+                    renderer = r
+                    autoRotate = r.autoRotate
                 }
-            }
+            )
             .ignoresSafeArea()
+
+            if loadState == .ready, let renderer {
+                controlOverlay(renderer)
+                    .transition(.opacity)
+            }
 
             switch loadState {
             case .loading:
@@ -42,12 +56,8 @@ struct SplatRendererView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: loadState)
         .task(id: url) {
-            // Reset to loading when URL changes
             loadState = .loading
 
-            // Lightweight pre-check before Metal starts loading.
-            // The actual load completion is handled by the MetalKitSceneView
-            // callback, but we catch obvious file errors early for better UX.
             guard let url else {
                 loadState = .error("No file URL")
                 return
@@ -63,10 +73,68 @@ struct SplatRendererView: View {
                 loadState = .error("File is empty or unreadable")
                 return
             }
+        }
+    }
 
-            // File looks good — MetalKitSceneView will call onLoadComplete
-            // when the async Metal load finishes. The loading overlay stays
-            // visible until then, covering the full parse duration.
+    // MARK: - Control overlay
+
+    @ViewBuilder
+    private func controlOverlay(_ renderer: MetalKitSceneRenderer) -> some View {
+        VStack {
+            HStack {
+                Button {
+                    autoRotate.toggle()
+                    renderer.autoRotate = autoRotate
+                } label: {
+                    Image(systemName: autoRotate ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                }
+
+                Button {
+                    renderer.resetView()
+                    autoRotate = false
+                    renderer.autoRotate = false
+                } label: {
+                    Image(systemName: "arrow.counterclockwise.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showControls.toggle()
+                    }
+                } label: {
+                    Image(systemName: showControls ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            if showControls {
+                HStack(spacing: 12) {
+                    Label("1-finger drag: rotate", systemImage: "hand.draw")
+                    Label("2-finger: pan", systemImage: "hand.draw.fill")
+                    Label("Pinch: zoom", systemImage: "plus.magnifyingglass")
+                }
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.8))
+                .shadow(radius: 1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial.opacity(0.6), in: Capsule())
+                .transition(.opacity)
+            }
+
+            Spacer()
         }
     }
 }

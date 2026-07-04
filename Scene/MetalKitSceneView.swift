@@ -12,6 +12,9 @@ struct MetalKitSceneView: UIViewRepresentable {
     /// Called when the async Metal load finishes. `nil` = success,
     /// non-nil = the error that was thrown. Called on MainActor.
     var onLoadComplete: (@MainActor (Error?) -> Void)?
+    /// Called once on first render with the renderer instance, so SwiftUI
+    /// can wire up control buttons (auto-rotate toggle, reset).
+    var onRendererReady: (@MainActor (MetalKitSceneRenderer) -> Void)?
 
     final class Coordinator {
         var renderer: MetalKitSceneRenderer?
@@ -37,6 +40,7 @@ struct MetalKitSceneView: UIViewRepresentable {
             handler.bind(view: metalKitView)
             context.coordinator.gestureHandler = handler
             addGestures(to: metalKitView, handler: handler)
+            onRendererReady?(renderer)
 
             Task { @MainActor in
                 do {
