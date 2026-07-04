@@ -50,9 +50,12 @@ platform :ios do
     sh("security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
     sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
 
-    # Find the distribution cert identity name for codesign
-    cert_identity = sh("security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep 'iPhone Distribution' | head -1 | sed 's/.*\"\\(.*\\)\".*/\\1/'").strip
-    UI.user_error!("No iPhone Distribution certificate found in keychain") if cert_identity.empty?
+    # Find the distribution cert identity name for codesign.
+    # Xcode 26 names it "Apple Distribution", older Xcode "iPhone Distribution".
+    identities = sh("security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db")
+    UI.important("Available codesigning identities:\n#{identities}")
+    cert_identity = identities.lines.select { |l| l =~ /Distribution/i }.first&.match(/"([^"]+)"/)&.[](1) || ""
+    UI.user_error!("No Distribution certificate found in keychain") if cert_identity.empty?
 
     Dir.chdir(REPO_ROOT) do
       archive_path = "build/GaussianSplattingViewer.xcarchive"
