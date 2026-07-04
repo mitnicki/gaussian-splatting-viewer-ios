@@ -130,6 +130,48 @@ def main():
         tester_id = data["data"]["id"]
         print(f"Created beta tester: {tester_id} ({email})")
         print(f"Invitation sent to {email}")
+    elif status == 409:
+        # 409: tester email already associated with an Apple ID but not in our group.
+        # Create without beta group, then add to group separately.
+        print(f"409 on create with group — retrying without group assignment")
+        create_body["data"]["relationships"] = {}
+        status2, data2 = asc_request(conn, jwt, "POST", "/v1/betaTesters", create_body)
+        if status2 == 201:
+            tester_id = data2["data"]["id"]
+            print(f"Created beta tester (no group): {tester_id} ({email})")
+            # Now add to group
+            status3, data3 = asc_request(conn, jwt, "POST",
+                f"/v1/betaGroups/{group_id}/relationships/betaTesters",
+                {"data": [{"type": "betaTesters", "id": tester_id}]})
+            if status3 in (200, 201, 204):
+                print(f"Added tester to group {group_id}")
+                print(f"Invitation sent to {email}")
+            else:
+                print(f"Add to group failed: {status3} {json.dumps(data3, indent=2)}")
+                sys.exit(1)
+        else:
+            # If still fails, the email may already be a beta tester under a different account
+            print(f"Create without group also failed: {status2}")
+            # Try listing all testers and search
+            status3, data3 = asc_request(conn, jwt, "GET", "/v1/betaTesters?limit=200")
+            if status3 == 200:
+                for t in data3.get("data", []):
+                    t_email = t.get("attributes", {}).get("email", "")
+                    if email.lower() in t_email.lower():
+                        tester_id = t["id"]
+                        print(f"Found existing tester by listing: {tester_id} ({t_email})")
+                        status4, data4 = asc_request(conn, jwt, "POST",
+                            f"/v1/betaGroups/{group_id}/relationships/betaTesters",
+                            {"data": [{"type": "betaTesters", "id": tester_id}]})
+                        if status4 in (200, 201, 204):
+                            print(f"Added existing tester to group")
+                            print(f"Invitation sent to {email}")
+                            return
+                        else:
+                            print(f"Add to group failed: {status4} {json.dumps(data4, indent=2)}")
+                            sys.exit(1)
+            print(f"Could not find or create tester for {email}")
+            sys.exit(1)
     else:
         print(f"Error creating tester: {status} {json.dumps(data, indent=2)}")
         sys.exit(1)
