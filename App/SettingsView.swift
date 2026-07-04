@@ -46,7 +46,7 @@ struct SettingsView: View {
                 if let result = connectionResult {
                     Text(result)
                         .font(.caption)
-                        .foregroundStyle(result.starts(with: "✓") ? .green : .red)
+                        .foregroundStyle(result.starts(with: "✓") ? Color.ciStatusGreen : Color.ciStatusRed)
                 }
             }
 

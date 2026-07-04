@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- App Icon for Gaussian Splatting Viewer (kroeker.cloud CI)
+     Background: Accent Gradient (#6366F1 → #A855F7 → #EC4899)
+     Monogram: "kc" in JetBrains Mono Bold, white (#F5F5F7)
+     Shape: Rounded square (iOS squircle)
+     Master size: 1024x1024
+     Convert to PNG: rsvg-convert -w 1024 -h 1024 app-icon.svg -o AppIcon-1024.png
+     Then use Xcode Asset Catalog or App Icon Generator to produce all sizes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="50%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="1024" height="1024" rx="227" ry="227"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect width="1024" height="1024" fill="url(#accentGradient)"/>
+    <text x="512" y="512"
+          font-family="'JetBrains Mono', 'Menlo', monospace"
+          font-size="380"
+          font-weight="700"
+          fill="#F5F5F7"
+          text-anchor="middle"
+          dominant-baseline="central"
+          letter-spacing="-20">kc</text>
+  </g>
+</svg>

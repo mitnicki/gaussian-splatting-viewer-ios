@@ -46,6 +46,7 @@ struct ContentView: View {
                 }
                 .tag(2)
         }
+        .tint(.ciAccent)
         .onAppear {
             cachedCredentials = loadCredentials()
         }
@@ -94,15 +95,16 @@ struct LocalFilePickerView: View {
 
                 Image(systemName: "cube.transparent")
                     .font(.system(size: 56))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.ciAccent)
                     .symbolEffect(.pulse)
 
                 VStack(spacing: 6) {
                     Text("Gaussian Splatting Viewer")
                         .font(.title2.bold())
+                        .foregroundStyle(.ciTextPrimary)
                     Text("Native Metal renderer — .ply / .splat / .spz")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.ciTextSecondary)
                 }
 
                 Spacer()
@@ -120,6 +122,7 @@ struct LocalFilePickerView: View {
                 Spacer()
             }
             .padding()
+            .background(.ciBgBase)
             .fileImporter(
                 isPresented: $isPickingFile,
                 allowedContentTypes: [
@@ -172,18 +175,20 @@ struct NoCredentialsView: View {
             VStack(spacing: 16) {
                 Image(systemName: "cloud.slash")
                     .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.ciTextSecondary)
 
                 Text("Nextcloud Not Configured")
                     .font(.title3.bold())
+                    .foregroundStyle(.ciTextPrimary)
 
                 Text("Go to Settings to configure your Nextcloud server URL, username, and app password.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.ciTextSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(.ciBgBase)
             .navigationTitle("Nextcloud")
             .navigationBarTitleDisplayMode(.inline)
         }

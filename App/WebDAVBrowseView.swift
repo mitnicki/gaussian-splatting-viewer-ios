@@ -151,14 +151,14 @@ struct WebDAVBrowseView: View {
                 if let progress = downloadProgress, progress.path == entry.path {
                     if progress.completed {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(.ciStatusGreen)
                     } else {
                         ProgressView(value: progress.fraction)
                             .frame(width: 60)
                     }
                 } else {
                     Image(systemName: "arrow.down.circle")
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(.ciAccent)
                 }
             }
         }

@@ -17,6 +17,8 @@ struct GaussianSplattingViewerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .tint(.ciAccent)
+                .preferredColorScheme(.dark)
         }
     }
 }

@@ -38,11 +38,11 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: Splat Viewer
+        CFBundleDisplayName: Gaussian Splatting Viewer
         CFBundleShortVersionString: "0.5.0"
         CFBundleVersion: "5"
         UILaunchScreen:
-          UIColorName: ""
+          UIColorName: "ciBgBase"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

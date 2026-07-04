@@ -54,6 +54,8 @@ struct SplatRendererView: View {
                 Color.clear
             }
         }
+        .tint(.ciAccent)
+        }
         .animation(.easeInOut(duration: 0.25), value: loadState)
         .task(id: url) {
             loadState = .loading
@@ -148,16 +150,16 @@ private struct LoadingOverlay: View {
         VStack(spacing: 16) {
             Image(systemName: "cube.transparent")
                 .font(.system(size: 48))
-                .foregroundStyle(.tint)
+                .foregroundStyle(.ciAccent)
                 .symbolEffect(.pulse, options: .repeating)
                 .scaleEffect(animatePulse ? 1.1 : 1.0)
 
             Text("Loading splat…")
                 .font(.headline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.ciTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground).opacity(0.9))
+        .background(.ciBgBase.opacity(0.9))
         .onAppear {
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 animatePulse = true
@@ -175,19 +177,20 @@ private struct ErrorOverlay: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundStyle(.orange)
+                .foregroundStyle(.ciStatusAmber)
 
             Text("Failed to Load")
                 .font(.headline)
+                .foregroundStyle(.ciTextPrimary)
 
             Text(message)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.ciTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground).opacity(0.95))
+        .background(.ciBgBase.opacity(0.95))
     }
 }
 
