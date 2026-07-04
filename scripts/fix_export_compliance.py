@@ -68,7 +68,7 @@ if status == 200 and data.get("data"):
                 "contactFirstName": "Dennis",
                 "contactLastName": "Kröker",
                 "demoAccountRequired": False,
-                "contactPhone": "+49 1234 567890"
+                "contactPhone": "+49-30-12345678"
             }
         }
     })
