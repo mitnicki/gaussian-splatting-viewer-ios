@@ -1,6 +1,8 @@
 name: Add Beta Tester
 
 on:
+  push:
+    branches: [beta/**]
   workflow_dispatch:
     inputs:
       email:
@@ -37,6 +39,6 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-          BETA_TESTER_EMAIL: ${{ inputs.email }}
-          BETA_TESTER_FIRST_NAME: ${{ inputs.first_name }}
-          BETA_TESTER_LAST_NAME: ${{ inputs.last_name }}
+          BETA_TESTER_EMAIL: ${{ inputs.email || vars.BETA_TESTER_EMAIL || 'nkroeker@hotmail.de' }}
+          BETA_TESTER_FIRST_NAME: ${{ inputs.first_name || vars.BETA_TESTER_FIRST_NAME || 'Nick' }}
+          BETA_TESTER_LAST_NAME: ${{ inputs.last_name || vars.BETA_TESTER_LAST_NAME || 'Kröker' }}
