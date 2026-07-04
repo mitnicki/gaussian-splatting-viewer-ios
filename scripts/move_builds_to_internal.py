@@ -85,15 +85,24 @@ for b in builds:
 if moved:
     print(f"\nMoving {len(moved)} build(s) to internal group one at a time...")
     for m in moved:
-        bver = m.get("version_hint", m["id"])
+        build_id = m["id"]
+        # Fix export compliance first (required for some builds)
+        status, bdata = asc(conn, jwt, "GET", f"/v1/builds/{build_id}")
+        attrs = bdata.get("data", {}).get("attributes", {})
+        non_exempt = attrs.get("usesNonExemptEncryption")
+        if non_exempt is None:
+            print(f"  Build {build_id}: setting usesNonExemptEncryption=false...")
+            asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}",
+                {"data": {"type": "builds", "id": build_id, "attributes": {"usesNonExemptEncryption": False}}})
+
         status, resp_data = asc(conn, jwt, "POST",
             f"/v1/betaGroups/{internal_id}/relationships/builds",
-            {"data": [{"type": "builds", "id": m["id"]}]})
+            {"data": [{"type": "builds", "id": build_id}]})
         if status in (200, 201, 204):
-            print(f"  ✅ Build {m['id']} — added to internal group")
+            print(f"  ✅ Build {build_id} — added to internal group")
         else:
             detail = resp_data.get("errors", [{}])[0].get("detail", str(resp_data)[:100])
-            print(f"  ❌ Build {m['id']} — FAILED: {detail}")
+            print(f"  ❌ Build {build_id} — FAILED: {detail}")
 else:
     print("No VALID builds to move.")
 
