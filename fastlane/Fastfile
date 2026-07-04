@@ -82,16 +82,17 @@ platform :ios do
       app_path = "#{archive_path}/Products/Applications/GaussianSplattingViewer.app"
       ipa_path = "#{ipa_output_dir}/GaussianSplattingViewer.ipa"
 
-      # Install provisioning profile
-      sh("mkdir -p ~/Library/MobileDevice/Provisioning\\ Profiles")
-      sh("cp #{profile_path} ~/Library/MobileDevice/Provisioning\\ Profiles/ 2>/dev/null || true")
+      # Embed provisioning profile into the .app
+      sh("cp #{profile_path} #{app_path}/embedded.mobileprovision")
 
       # Codesign — use --force to replace the unsigned copy from archive.
-      # Embed the provisioning profile so the IPA is self-contained.
+      # Entitlements: the archive generates .entitlements only if code signing
+      # was active during archive. Since we archive unsigned, we codesign
+      # without --entitlements (the profile carries the entitlements).
       UI.message("=== Codesigning .app ===")
       sh("codesign -f -s '#{cert_identity}' " \
-         "--entitlements #{app_path}/GaussianSplattingViewer.entitlements " \
          "-i #{app_id} " \
+         "--timestamp=none " \
          "#{app_path} 2>&1")
 
       # Verify signature
