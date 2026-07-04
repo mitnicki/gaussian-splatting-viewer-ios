@@ -88,9 +88,18 @@ platform :ios do
       # Embed provisioning profile
       sh("cp #{profile_path} #{app_path}/embedded.mobileprovision")
 
-      # Codesign
+      # Extract entitlements from the provisioning profile.
+      # The unsigned archive has no entitlements, so we derive them from
+      # the .mobileprovision file (which contains the Entitlements plist).
+      entitlements_plist = "/tmp/app.entitlements"
+      sh("security cms -D -i #{profile_path} > /tmp/profile.plist 2>/dev/null")
+      sh("/usr/libexec/PlistBuddy -x -c 'Print :Entitlements' /tmp/profile.plist > #{entitlements_plist}")
+
+      # Codesign with entitlements
       UI.message("=== Codesigning .app with '#{cert_identity}' ===")
-      sh("codesign -f -s '#{cert_identity}' -i #{app_id} --timestamp=none #{app_path} 2>&1")
+      sh("codesign -f -s '#{cert_identity}' -i #{app_id} " \
+         "--entitlements #{entitlements_plist} " \
+         "--timestamp=none #{app_path} 2>&1")
 
       # Verify
       sh("codesign -vv #{app_path} 2>&1")
