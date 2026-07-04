@@ -49,110 +49,75 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# Get all builds
+# Get builds
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
 builds = data.get("data", [])
 print(f"\nBuilds: {len(builds)}")
 
-# Get the latest valid, non-expired build
-latest_build = None
 for b in builds:
     build_id = b["id"]
     version = b["attributes"]["version"]
     expired = b["attributes"].get("expired", False)
     processing = b["attributes"].get("processingState", "")
-    print(f"  v{version} ({build_id}): expired={expired} state={processing}")
-    if not expired and processing == "VALID":
-        latest_build = b
+    non_exempt = b["attributes"].get("usesNonExemptEncryption", None)
+    print(f"  v{version} ({build_id}): expired={expired} state={processing} usesNonExemptEncryption={non_exempt}")
 
-if not latest_build:
-    print("No valid build found!")
-    sys.exit(1)
+    if expired or processing != "VALID":
+        continue
 
-build_id = latest_build["id"]
-version = latest_build["attributes"]["version"]
-print(f"\nUsing build v{version} ({build_id})")
-
-# 1. Try to set export compliance via exportCompliances endpoint
-print("\n--- Setting export compliance ---")
-status, data = asc(conn, jwt, "POST", "/v1/exportCompliances", {
-    "data": {
-        "type": "exportCompliances",
-        "attributes": {
-            "usesEncryption": False,
-            "doesnTUseEncryption": True
-        },
-        "relationships": {
-            "build": {"data": {"type": "builds", "id": build_id}}
-        }
-    }
-})
-print(f"POST exportCompliances: {status}")
-if status == 201:
-    print("Export compliance created!")
-elif status == 409:
-    # Maybe already exists, try GET
-    print(f"409: {json.dumps(data)[:300]}")
-    # Try PATCH on build's exportCompliance relationship
-    status2, data2 = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/exportCompliance")
-    print(f"GET exportCompliance: {status2} {json.dumps(data2)[:300]}")
-else:
-    print(f"Error: {json.dumps(data)[:400]}")
-
-# 2. Also try PATCH on build directly with exportCompliance attribute
-print("\n--- PATCH build with exportCompliance ---")
-status, data = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}", {
-    "data": {
-        "type": "builds",
-        "id": build_id,
-        "attributes": {
-            "exportCompliance": {
-                "usesEncryption": False,
-                "doesnTUseEncryption": True
+    # 1. Set usesNonExemptEncryption=false (build doesn't use exempt encryption)
+    if non_exempt is None:
+        print(f"  Patching v{version} export compliance...")
+        status, data = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}", {
+            "data": {
+                "type": "builds",
+                "id": build_id,
+                "attributes": {
+                    "usesNonExemptEncryption": False
+                }
             }
+        })
+        print(f"  PATCH result: {status}")
+        if status == 200:
+            new_val = data["data"]["attributes"].get("usesNonExemptEncryption")
+            print(f"  usesNonExemptEncryption set to: {new_val}")
+        else:
+            print(f"  Error: {json.dumps(data)[:300]}")
+
+    # 2. Check existing beta review submission
+    status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmission")
+    print(f"  Existing submission: {status}")
+    if status == 200 and data.get("data"):
+        state = data["data"]["attributes"].get("betaReviewState", "")
+        print(f"    state={state}")
+        if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"):
+            print(f"    Already submitted — skipping")
+            continue
+    elif status == 404:
+        print(f"    No existing submission")
+
+    # 3. Submit for beta review
+    print(f"  Submitting v{version} for beta review...")
+    status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
+        "data": {
+            "type": "betaAppReviewSubmissions",
+            "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}
         }
-    }
-})
-print(f"PATCH build: {status}")
-if status == 200:
-    print("Export compliance set via build PATCH!")
-    ec = data.get("data", {}).get("attributes", {}).get("exportCompliance", {})
-    print(f"  exportCompliance: {ec}")
-else:
-    print(f"Error: {json.dumps(data)[:400]}")
-    # Try alternative: PATCH with relationship
-    status2, data2 = asc(conn, jwt, "PATCH", f"/v1/builds/{build_id}/relationships/exportCompliance", {
-        "data": {"type": "exportCompliances", "id": "current"}
     })
-    print(f"PATCH relationship: {status2} {json.dumps(data2)[:300]}")
+    if status == 201:
+        state = data["data"]["attributes"].get("betaReviewState", "")
+        print(f"  SUCCESS! state={state}")
+    elif status == 422:
+        err = data.get("errors", [{}])[0].get("detail", "")
+        print(f"  422: {err}")
+    elif status == 409:
+        print(f"  409: Already submitted")
+    else:
+        print(f"  {status}: {json.dumps(data)[:300]}")
+    print()
 
-# 3. Check existing beta review submissions
-print("\n--- Beta review submissions ---")
-status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmissions")
-print(f"Existing: {status} {json.dumps(data)[:300]}")
-
-# 4. Submit for beta review
-print("\n--- Submitting for beta review ---")
-status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewSubmissions", {
-    "data": {
-        "type": "betaAppReviewSubmissions",
-        "relationships": {"build": {"data": {"type": "builds", "id": build_id}}}
-    }
-})
-print(f"Submit: {status}")
-if status == 201:
-    state = data["data"]["attributes"].get("betaReviewState", "")
-    print(f"SUCCESS! state={state}")
-elif status == 422:
-    err = data.get("errors", [{}])[0].get("detail", "")
-    print(f"422: {err}")
-elif status == 409:
-    print(f"409: Already submitted")
-else:
-    print(f"Error: {json.dumps(data)[:400]}")
-
-# 5. List beta testers
-print("\n=== Beta Testers ===")
+# Final status: list all beta testers
+print("=== Beta Testers ===")
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups?include=betaTesters")
 groups = data.get("data", [])
 included = data.get("included", [])
