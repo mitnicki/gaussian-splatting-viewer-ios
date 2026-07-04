@@ -1,12 +1,10 @@
 # Fastlane Fastfile — TestFlight deployment via App Store Connect API Key.
-# CI flow: cert + sigh → unsigned archive → manual codesign + IPA package → upload_to_testflight
-#
-# Bypasses xcodebuild -exportArchive which hangs IDEDistribution on GitHub Actions
-# macOS runners (keychain partition list issue). Instead: codesign the .app directly,
-# package as IPA manually, upload via fastlane's upload_to_testflight (iTMSTransporter).
+# Uses a temporary keychain with known password to fix codesign hang on CI.
 default_platform(:ios)
 
 REPO_ROOT = File.expand_path("..", Dir.pwd)
+KEYCHAIN_NAME = "fastlane_tmp"
+KEYCHAIN_PASSWORD = "tempkey123"
 
 platform :ios do
   def api_key
@@ -25,45 +23,49 @@ platform :ios do
     File.write(key_path, ENV['ASC_API_KEY_CONTENT'])
     team_id = ENV.fetch("APPLE_TEAM_ID", "")
     app_id = "cloud.dkroeker.GaussianSplattingViewer"
+    keychain_path = "#{Dir.home}/Library/Keychains/#{KEYCHAIN_NAME}.keychain-db"
 
-    # Create/get distribution certificate — force: true revokes orphaned
-    # certs from previous ephemeral CI runners that hold no private key locally.
+    # Create a temporary keychain with a known password.
+    # The GitHub Actions login keychain has an unknown password, so
+    # security set-key-partition-list fails and codesign hangs.
+    sh("security delete-keychain #{KEYCHAIN_NAME}.keychain-db 2>/dev/null || true")
+    sh("security create-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}.keychain-db")
+    sh("security set-keychain-settings -t 3600 -u #{KEYCHAIN_NAME}.keychain-db")
+    sh("security unlock-keychain -p #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}.keychain-db")
+
+    # Create/get distribution certificate in the temp keychain
     cert(
       api_key: api_key,
       team_id: team_id,
       force: true,
-      keychain_password: ""
+      keychain_path: keychain_path,
+      keychain_password: KEYCHAIN_PASSWORD
     )
+
+    # Set partition list so codesign can access the key without UI prompt
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{KEYCHAIN_PASSWORD} #{KEYCHAIN_NAME}.keychain-db")
+
+    # Find the distribution cert identity name for codesign
+    identities = sh("security find-identity -v -p codesigning #{keychain_path}")
+    UI.important("Available codesigning identities:\n#{identities}")
+    cert_identity = identities.lines.select { |l| l =~ /Distribution/i }.first&.match(/\"([^\"]+)\"/)&.[](1) || ""
+    UI.user_error!("No Distribution certificate found in keychain") if cert_identity.empty?
 
     # Create/get App Store distribution provisioning profile
     sigh(
       api_key: api_key,
       app_identifier: app_id
     )
+
     profile_path = ENV["SIGH_PROFILE_PATH"]
-    UI.important("Profile path: #{profile_path}")
-    UI.user_error!("No provisioning profile path from sigh") if profile_path.nil? || profile_path.empty?
-
-    # Keychain: unlock + set partition list so codesign (and IDEDistribution
-    # if ever used) can access the private key without a GUI prompt.
-    # This is the fix for the silent hang on GitHub Actions macOS runners.
-    sh("security unlock-keychain -p '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
-    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' ~/Library/Keychains/login.keychain-db 2>/dev/null || true")
-
-    # Find the distribution cert identity name for codesign.
-    # Xcode 26 names it "Apple Distribution", older Xcode "iPhone Distribution".
-    identities = sh("security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db")
-    UI.important("Available codesigning identities:\n#{identities}")
-    cert_identity = identities.lines.select { |l| l =~ /Distribution/i }.first&.match(/"([^"]+)"/)&.[](1) || ""
-    UI.user_error!("No Distribution certificate found in keychain") if cert_identity.empty?
+    profile_name = ENV["SIGH_NAME"] || "#{app_id} AppStore"
 
     Dir.chdir(REPO_ROOT) do
       archive_path = "build/GaussianSplattingViewer.xcarchive"
       ipa_output_dir = "build/ipa"
       sh("rm -rf build && mkdir -p #{ipa_output_dir}")
 
-      # Step 1: Archive without signing — avoids "does not support provisioning profiles"
-      # on MetalSplatter SPM dependency targets.
+      # Archive without signing
       UI.message("=== Archiving (unsigned) ===")
       sh("xcodebuild archive " \
          "-project GaussianSplattingViewer.xcodeproj " \
@@ -77,25 +79,18 @@ platform :ios do
          "CODE_SIGNING_REQUIRED=NO " \
          "2>&1")
 
-      # Step 2: Manually codesign the .app and package as IPA.
-      # Bypasses xcodebuild -exportArchive which hangs IDEDistribution.
+      # Manually codesign the .app and package as IPA.
       app_path = "#{archive_path}/Products/Applications/GaussianSplattingViewer.app"
       ipa_path = "#{ipa_output_dir}/GaussianSplattingViewer.ipa"
 
-      # Embed provisioning profile into the .app
+      # Embed provisioning profile
       sh("cp #{profile_path} #{app_path}/embedded.mobileprovision")
 
-      # Codesign — use --force to replace the unsigned copy from archive.
-      # Entitlements: the archive generates .entitlements only if code signing
-      # was active during archive. Since we archive unsigned, we codesign
-      # without --entitlements (the profile carries the entitlements).
-      UI.message("=== Codesigning .app ===")
-      sh("codesign -f -s '#{cert_identity}' " \
-         "-i #{app_id} " \
-         "--timestamp=none " \
-         "#{app_path} 2>&1")
+      # Codesign
+      UI.message("=== Codesigning .app with '#{cert_identity}' ===")
+      sh("codesign -f -s '#{cert_identity}' -i #{app_id} --timestamp=none #{app_path} 2>&1")
 
-      # Verify signature
+      # Verify
       sh("codesign -vv #{app_path} 2>&1")
 
       # Package as IPA
@@ -108,7 +103,6 @@ platform :ios do
       UI.message("=== IPA ready: #{ipa_path} ===")
     end
 
-    # Upload to TestFlight — uses iTMSTransporter, not exportArchive.
     upload_to_testflight(
       api_key: api_key,
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
