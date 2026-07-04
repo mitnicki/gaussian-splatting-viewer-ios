@@ -1,0 +1,28 @@
+name: Submit Beta Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Tester email to add after review approval"
+        required: false
+        type: string
+        default: "dennis@kroeker.cloud"
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cryptography
+        run: pip install cryptography
+      - name: Submit beta review
+        run: python3 scripts/submit_beta_review.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+          BETA_TESTER_EMAIL: ${{ inputs.email }}
