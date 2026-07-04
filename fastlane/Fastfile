@@ -24,11 +24,15 @@ platform :ios do
     app_id = "cloud.dkroeker.GaussianSplattingViewer"
 
     # Create/get distribution certificate — force: true revokes orphaned
-    # certs from previous ephemeral CI runners that hold no private key locally
+    # certs from previous ephemeral CI runners that hold no private key locally.
+    # keychain_password: '' is required on GitHub Actions macOS runners where
+    # the login keychain has an empty password. Without it, codesign hangs
+    # waiting for a keychain unlock prompt.
     cert(
       api_key: api_key,
       team_id: team_id,
-      force: true
+      force: true,
+      keychain_password: ""
     )
 
     # Create/get App Store distribution provisioning profile
