@@ -30,7 +30,8 @@ def asc(conn, jwt, method, path, body=None):
         headers["Content-Type"] = "application/json"
     conn.request(method, path, body=json.dumps(body) if body else None, headers=headers)
     resp = conn.getresponse()
-    data = json.loads(resp.read().decode())
+    raw = resp.read().decode()
+    data = json.loads(raw) if raw else {}
     return resp.status, data
 
 def main():
