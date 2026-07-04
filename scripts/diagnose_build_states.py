@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnose build states — extended version."""
+"""Investigate why Build 7 failed internal group assignment."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -49,42 +49,26 @@ conn = http.client.HTTPSConnection("api.appstoreconnect.apple.com", context=ctx)
 bundle_id = "cloud.dkroeker.GaussianSplattingViewer"
 status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
-print(f"App: {app_id}")
 
-# GET ALL BUILDS (no fields filter, get everything)
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
-print(f"\nAll builds ({status}): {len(data.get('data',[]))} found")
-for b in data.get("data", []):
-    a = b["attributes"]
-    bid = b["id"]
-    ver = a.get("version", "?")
-    proc = a.get("processingState", "?")
-    aud = a.get("buildAudienceType", "?")
-    expired = a.get("expired", "?")
-    uploaded = a.get("uploadedDate", "?")
-    print(f"  Build {ver} ({bid}): proc={proc} audience={aud} expired={expired} uploaded={uploaded}")
+# Get all builds with full detail
+bids = {
+    "5": "180a2386-4331-42ad-88f8-fab3fb4a541d",
+    "7": "b2fe4794-5f76-4a7b-ba48-7803bb55fd7e",
+    "4": "7b3ec485-0497-4119-bb95-79fdab1389d3",
+    "6": "7844f1ac-166b-4517-a607-a5a62d22d881",
+}
 
-# Check what builds are in each group
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
-for g in data.get("data", []):
-    gid = g["id"]
-    name = g["attributes"]["name"]
-    is_int = g["attributes"].get("isInternalGroup", False)
-    status2, bd = asc(conn, jwt, "GET", f"/v1/betaGroups/{gid}/builds?limit=10")
-    blist = [f"B{b['attributes'].get('version','?')}" for b in bd.get("data", [])]
-    print(f"  Group '{name}' (internal={is_int}): {', '.join(blist) if blist else 'empty'}")
-
-print("\nExport compliance for each build:")
-for b in data.get("data", []):
-    bid = b["id"]
-    ver = b["attributes"].get("version", "?")
-    # GET export compliance directly on build
-    status, ed = asc(conn, jwt, "GET", f"/v1/builds/{bid}")
-    a = ed.get("data", {}).get("attributes", {})
-    enc = a.get("usesNonExemptEncryption", "N/A")
-    ecs = a.get("exportComplianceState", "N/A")
-    pst = a.get("processingState", "N/A")
-    bt = a.get("betaAppReviewSubmissionState", "N/A")
-    print(f"  Build {ver}: enc={enc} ecState={ecs} procState={pst} betaReviewState={bt}")
+for ver, bid in sorted(bids.items()):
+    status, data = asc(conn, jwt, "GET", f"/v1/builds/{bid}")
+    attrs = data.get("data", {}).get("attributes", {})
+    print(f"\n=== Build {ver} ({bid}) ===")
+    for k, v in sorted(attrs.items()):
+        print(f"  {k}: {v}")
+    
+    # Check all relationships
+    rels = data.get("data", {}).get("relationships", {})
+    for rname, rdata in sorted(rels.items()):
+        rstatus, rresult = asc(conn, jwt, "GET", f"/v1/builds/{bid}/{rname}")
+        print(f"  Relationship '{rname}' ({rstatus}): {json.dumps(rresult)[:200]}")
 
 conn.close()
