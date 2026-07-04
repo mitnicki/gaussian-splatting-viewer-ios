@@ -13,8 +13,8 @@ jobs:
           python-version: "3.12"
       - name: Install cryptography
         run: pip install cryptography
-      - name: Fix export compliance and submit for review
-        run: python3 scripts/fix_export_compliance.py
+      - name: Check permissions
+        run: python3 scripts/check_permissions.py
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
