@@ -58,28 +58,36 @@ for b in data.get("data", []):
         print(f"Build: v{b['attributes']['version']} ({build_id})")
         break
 
-# 1. Ensure beta app localization exists
-desc = "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal."
+# 1. Ensure beta app localizations exist for both en-US and de-DE
+# ASC requires a localization matching the app's primaryLocale (de-DE)
+descs = {
+    "en-US": "Gaussian Splatting Viewer — view 3D Gaussian Splat scenes on iOS. Connect to Nextcloud WebDAV, browse and render .spz files with Metal.",
+    "de-DE": "Gaussian Splatting Viewer — 3D Gaussian Splat Szenen auf iOS anzeigen. Nextcloud WebDAV verbinden, .spz Dateien mit Metal rendern.",
+}
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppLocalizations")
 print(f"Beta localizations: status={status} count={len(data.get('data', []))}")
+existing_locs = {}
 if status == 200:
-    locs = data.get("data", [])
-    if locs:
-        loc_id = locs[0]["id"]
-        print(f"  Existing: {loc_id}")
-        status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppLocalizations/{loc_id}", {
-            "data": {"type": "betaAppLocalizations", "id": loc_id, "attributes": {"description": desc}}
+    for loc in data.get("data", []):
+        locale = loc["attributes"].get("locale", "")
+        existing_locs[locale] = loc["id"]
+        print(f"  {locale}: {loc['id']}")
+
+for locale, desc in descs.items():
+    if locale in existing_locs:
+        status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppLocalizations/{existing_locs[locale]}", {
+            "data": {"type": "betaAppLocalizations", "id": existing_locs[locale], "attributes": {"description": desc}}
         })
-        print(f"  Updated: {status}")
+        print(f"  {locale} updated: {status}")
     else:
         status, data = asc(conn, jwt, "POST", "/v1/betaAppLocalizations", {
             "data": {
                 "type": "betaAppLocalizations",
-                "attributes": {"locale": "en-US", "description": desc},
+                "attributes": {"locale": locale, "description": desc},
                 "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}
             }
         })
-        print(f"  Created: {status} {json.dumps(data)[:200]}")
+        print(f"  {locale} created: {status} {json.dumps(data)[:200]}")
 
 # 2. Ensure beta app review details exist
 # Get via app relationship (not filter)

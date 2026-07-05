@@ -101,3 +101,22 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+  submit-review:
+    name: Submit for Beta Review
+    runs-on: ubuntu-latest
+    needs: testflight
+    if: ${{ vars.ENABLE_TESTFLIGHT == 'true' || github.event.inputs.testflight == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cryptography
+        run: pip install cryptography
+      - name: Submit beta review
+        run: python3 scripts/submit_beta_review.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
