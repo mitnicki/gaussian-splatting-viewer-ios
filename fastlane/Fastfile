@@ -119,7 +119,7 @@ platform :ios do
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
-      changelog: "v0.8.1: Fix splat loading regression — revert streaming load, add concurrent-load guard. Splats should load again."
+      changelog: "v0.8.2: Add ITSAppUsesNonExemptEncryption to Info.plist — fixes TestFlight visibility (no more re-processing delay)."
     )
   end
 end
