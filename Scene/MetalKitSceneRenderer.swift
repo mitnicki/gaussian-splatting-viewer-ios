@@ -68,7 +68,16 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         metalKitView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
     }
 
+    /// Prevents concurrent loads — makeUIView and updateUIView can both
+    /// fire before the first load completes, causing a race where two
+    /// loads nil out modelRenderer and overwrite each other's results.
+    private var isLoading = false
+
     func load(_ url: URL?) async throws {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+
         // Guard against reloading the same URL. We compare against
         // loadedURL (set only after a successful load), NOT a pre-set
         // value — so a failed load can be retried with the same URL.
@@ -88,50 +97,14 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
             maxViewCount: 1,
             maxSimultaneousRenders: Constants.maxSimultaneousRenders
         )
-        // Stream batches directly into MetalBuffer to avoid buffering
-        // all SplatPoints in a Swift array (which doubles peak memory —
-        // the array + the GPU buffer copy). For a 1.1 GB .ply with 4.48M
-        // splats, this cuts peak memory from ~2 GB to ~1.1 GB.
+        // ponytail: readAll() double-buffers (Swift array + GPU buffer),
+        // but .spz files are ~113MB — peak ~230MB is well within iPhone
+        // memory. The streaming load that replaced this had a race
+        // condition (double-load from makeUIView + updateUIView) and
+        // was never tested on-device. Revert to proven approach.
         let reader = try AutodetectSceneReader(url)
-        let splatBuffer = try MetalBuffer<EncodedSplatPoint>(device: device, capacity: 65536)
-        var shBuffer: MetalBuffer<Float16>?
-        var shDegree: SHDegree = .sh0
-        var coeffsPerSplat = 0
-
-        for try await batch in try await reader.read() {
-            if shDegree == .sh0 {
-                shDegree = batch.first?.color.shDegree ?? .sh0
-                if shDegree > .sh0 {
-                    coeffsPerSplat = shDegree.extraCoefficientCount * 3
-                }
-            }
-
-            let oldCount = splatBuffer.count
-            try splatBuffer.ensureCapacity(oldCount + batch.count)
-            splatBuffer.count = oldCount + batch.count
-            for i in 0..<batch.count {
-                splatBuffer.values[oldCount + i] = EncodedSplatPoint(batch[i])
-            }
-
-            if coeffsPerSplat > 0 {
-                if shBuffer == nil {
-                    shBuffer = try MetalBuffer<Float16>(device: device, capacity: 65536 * coeffsPerSplat)
-                }
-                let shOldEnd = shBuffer!.count
-                let needed = batch.count * coeffsPerSplat
-                try shBuffer!.ensureCapacity(shOldEnd + needed)
-                shBuffer!.count = shOldEnd + needed
-                for (i, point) in batch.enumerated() {
-                    let higherOrder = point.color.higherOrderSHCoefficients
-                    let offset = shOldEnd + i * coeffsPerSplat
-                    for (j, coeff) in higherOrder.enumerated() {
-                        shBuffer!.values[offset + j] = Float16(coeff)
-                    }
-                }
-            }
-        }
-
-        let chunk = SplatChunk(splats: splatBuffer, shCoefficients: shBuffer, shDegree: shDegree)
+        let points = try await reader.readAll()
+        let chunk = try SplatChunk(device: device, from: points)
         await splat.addChunk(chunk)
         modelRenderer = splat
         loadedURL = url
