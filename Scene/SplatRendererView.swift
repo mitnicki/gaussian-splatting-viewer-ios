@@ -12,6 +12,7 @@ struct SplatRendererView: View {
     @State private var loadState: LoadState = .loading
     @State private var renderer: MetalKitSceneRenderer?
     @State private var autoRotate: Bool = false
+    @State private var walkthroughActive: Bool = false
     @State private var showControls: Bool = true
 
     private enum LoadState: Equatable {
@@ -85,6 +86,7 @@ struct SplatRendererView: View {
             HStack {
                 Button {
                     autoRotate.toggle()
+                    if walkthroughActive { stopWalkthrough(renderer) }
                     renderer.autoRotate = autoRotate
                 } label: {
                     Image(systemName: autoRotate ? "pause.circle.fill" : "play.circle.fill")
@@ -94,8 +96,18 @@ struct SplatRendererView: View {
                 }
 
                 Button {
+                    if walkthroughActive { stopWalkthrough(renderer) } else { startWalkthrough(renderer) }
+                } label: {
+                    Image(systemName: walkthroughActive ? "stop.fill" : "figure.walk")
+                        .font(.title2)
+                        .foregroundStyle(walkthroughActive ? .ciAccent : .white)
+                        .shadow(radius: 2)
+                }
+
+                Button {
                     renderer.resetView()
                     autoRotate = false
+                    walkthroughActive = false
                     renderer.autoRotate = false
                 } label: {
                     Image(systemName: "arrow.counterclockwise.circle.fill")
@@ -136,7 +148,44 @@ struct SplatRendererView: View {
             }
 
             Spacer()
+
+            // Zoom control buttons — right-aligned vertical stack
+            HStack {
+                Spacer()
+                VStack(spacing: 12) {
+                    Button {
+                        renderer.zoomIn()
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .shadow(radius: 2)
+                    }
+                    Button {
+                        renderer.zoomOut()
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .shadow(radius: 2)
+                    }
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 40)
+            }
         }
+    }
+
+    private func startWalkthrough(_ renderer: MetalKitSceneRenderer) {
+        walkthroughActive = true
+        autoRotate = false
+        renderer.autoRotate = false
+        renderer.startWalkthrough()
+    }
+
+    private func stopWalkthrough(_ renderer: MetalKitSceneRenderer) {
+        walkthroughActive = false
+        renderer.stopWalkthrough()
     }
 }
 

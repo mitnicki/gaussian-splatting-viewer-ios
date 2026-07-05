@@ -55,6 +55,15 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     var manualRotation: simd_quatf = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
     var cameraDistance: Float = 0  // offset from default, zoom in/out
     var panOffset: SIMD2<Float> = .zero  // screen-space pan
+    var walkthroughActive: Bool = false
+
+    private let zoomStep: Float = 0.6
+
+    func zoomIn() { cameraDistance = min(cameraDistance + zoomStep, 15.0) }
+    func zoomOut() { cameraDistance = max(cameraDistance - zoomStep, -7.0) }
+
+    // Walkthrough: slow auto-orbit + gentle zoom oscillation
+    private var walkthroughStartTime: Date? = nil
 
     init?(_ metalKitView: MTKView) {
         guard let device = metalKitView.device else { return nil }
@@ -151,11 +160,18 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     }
 
     private func updateRotation() {
-        guard autoRotate else { return }
-        let now = Date()
-        defer { lastRotationUpdateTimestamp = now }
-        guard let lastRotationUpdateTimestamp else { return }
-        rotation += Constants.rotationPerSecond * now.timeIntervalSince(lastRotationUpdateTimestamp)
+        if walkthroughActive, let start = walkthroughStartTime {
+            let elapsed = Float(Date().timeIntervalSince(start))
+            // Slow orbit
+            rotation = Angle.radians(Double(elapsed * 0.15))
+            // Gentle zoom oscillation: sin wave between -3 and +3
+            cameraDistance = sin(elapsed * 0.3) * 3.0
+        } else if autoRotate {
+            let now = Date()
+            defer { lastRotationUpdateTimestamp = now }
+            guard let lastRotationUpdateTimestamp else { return }
+            rotation += Constants.rotationPerSecond * now.timeIntervalSince(lastRotationUpdateTimestamp)
+        }
     }
 
     // MARK: - Gesture handlers
@@ -177,6 +193,19 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         panOffset = .zero
         manualRotation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
         rotation = .zero
+        stopWalkthrough()
+    }
+
+    func startWalkthrough() {
+        walkthroughActive = true
+        walkthroughStartTime = Date()
+        autoRotate = true
+    }
+
+    func stopWalkthrough() {
+        walkthroughActive = false
+        walkthroughStartTime = nil
+        autoRotate = false
     }
 
     func draw(in view: MTKView) {
