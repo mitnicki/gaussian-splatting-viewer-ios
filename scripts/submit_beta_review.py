@@ -49,14 +49,25 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# Get latest build
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=5")
+# Get latest VALID build (sort by version descending to pick newest)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=20")
 build_id = None
+valid_builds = []
 for b in data.get("data", []):
     if b["attributes"].get("processingState") == "VALID" and not b["attributes"].get("expired", False):
-        build_id = b["id"]
-        print(f"Build: v{b['attributes']['version']} ({build_id})")
-        break
+        valid_builds.append(b)
+# Sort by version (numeric descending) — pick the highest build number
+valid_builds.sort(key=lambda b: int(b["attributes"].get("version", "0")), reverse=True)
+if valid_builds:
+    build_id = valid_builds[0]["id"]
+    print(f"Build: v{valid_builds[0]['attributes']['version']} ({build_id})")
+else:
+    print("No VALID builds found!")
+    # Print all build states for debugging
+    for b in data.get("data", []):
+        print(f"  Build v{b['attributes'].get('version','?')} state={b['attributes'].get('processingState','?')} expired={b['attributes'].get('expired',False)}")
+    conn.close()
+    sys.exit(1)
 
 # 1. Ensure beta app localizations exist for both en-US and de-DE
 # ASC requires a localization matching the app's primaryLocale (de-DE)
@@ -90,43 +101,29 @@ for locale, desc in descs.items():
         print(f"  {locale} created: {status} {json.dumps(data)[:200]}")
 
 # 2. Ensure beta app review details exist
-# Get via app relationship (not filter)
+# betaAppReviewDetails auto-exists once a build is uploaded; GET via app relationship
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaAppReviewDetails")
 print(f"\nBeta review details (via relationship): status={status}")
-if status == 200:
-    if data.get("data"):
-        rad_id = data["data"][0]["id"]
-        print(f"  Exists: {rad_id}")
-        status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppReviewDetails/{rad_id}", {
-            "data": {
-                "type": "betaAppReviewDetails", "id": rad_id,
-                "attributes": {
-                    "contactEmail": "dennis@kroeker.cloud",
-                    "contactFirstName": "Dennis",
-                    "contactLastName": "Kröker",
-                    "demoAccountRequired": False
-                }
-            }
-        })
-        print(f"  Updated: {status}")
-    else:
-        print("  No data returned")
-else:
-    # Create
-    print("  Creating...")
-    status, data = asc(conn, jwt, "POST", "/v1/betaAppReviewDetails", {
+if status == 200 and data.get("data"):
+    rad_id = data["data"][0]["id"]
+    print(f"  Exists: {rad_id}")
+    status, data = asc(conn, jwt, "PATCH", f"/v1/betaAppReviewDetails/{rad_id}", {
         "data": {
-            "type": "betaAppReviewDetails",
+            "type": "betaAppReviewDetails", "id": rad_id,
             "attributes": {
                 "contactEmail": "dennis@kroeker.cloud",
                 "contactFirstName": "Dennis",
                 "contactLastName": "Kröker",
                 "demoAccountRequired": False
-            },
-            "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}
+            }
         }
     })
-    print(f"  Created: {status} {json.dumps(data)[:300]}")
+    print(f"  Updated: {status}")
+else:
+    # ponytail: betaAppReviewDetails auto-creates with the build; if GET returns 404,
+    # the resource already exists but the relationship endpoint is buggy — skip and
+    # let the submission proceed. CREATE always 403s (ASC doesn't allow it via API).
+    print(f"  GET returned {status} — skipping (auto-exists with build, CREATE not allowed by ASC)")
 
 # 3. Check existing beta review submissions for this build
 status, data = asc(conn, jwt, "GET", f"/v1/builds/{build_id}/betaAppReviewSubmissions")
