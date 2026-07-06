@@ -4,11 +4,6 @@ on:
   push:
     branches: [beta/move-builds]
   workflow_dispatch:
-    inputs:
-      build_id:
-        description: "Specific build ID to add (optional)"
-        required: false
-        type: string
 
 jobs:
   move:
@@ -26,11 +21,10 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-      - name: Add specific build by ID (if provided)
-        if: ${{ github.event.inputs.build_id != '' }}
+      - name: Add build 133 by ID
         run: python3 scripts/add_build_by_id.py
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-          BUILD_ID: ${{ github.event.inputs.build_id }}
+          BUILD_ID: "41368a90-36b8-4d99-96b0-2dd730fc0028"
