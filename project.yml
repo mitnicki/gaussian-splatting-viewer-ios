@@ -107,6 +107,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
         MARKETING_VERSION: "0.11.0"
-        CURRENT_PROJECT_VERSION: "16"
+        CURRENT_PROJECT_VERSION: "130"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}
