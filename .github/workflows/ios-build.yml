@@ -8,6 +8,17 @@ name: iOS Build
 on:
   push:
     branches: [main, master]
+    paths:
+      - 'App/**'
+      - 'Model/**'
+      - 'Scene/**'
+      - 'Util/**'
+      - 'Assets.xcassets/**'
+      - 'Fonts/**'
+      - 'project.yml'
+      - 'fastlane/**'
+      - 'scripts/**'
+      - '.github/workflows/ios-build.yml'
   workflow_dispatch:
     inputs:
       testflight:
