@@ -9,6 +9,7 @@
 import Metal
 import MetalKit
 import MetalSplatter
+import CoreImage
 import os
 import simd
 import SplatIO
@@ -217,10 +218,10 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
 
     /// Capture the current Metal drawable as a UIImage.
     func captureSnapshot() -> UIImage? {
-        guard let view = metalKitView.currentDrawable,
-              let texture = view.texture else { return nil }
+        guard let drawable = metalKitView.currentDrawable else { return nil }
+        let texture = drawable.texture
 
-        let ciImage = CIImage(mtTexture: texture, options: nil)
+        let ciImage = CIImage(mtlTexture: texture, options: nil)
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cgImage)
