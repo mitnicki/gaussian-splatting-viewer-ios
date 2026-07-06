@@ -8,6 +8,8 @@ on:
         required: false
         type: string
         default: "dennis@kroeker.cloud"
+  push:
+    branches: [beta/submit-review]
 
 jobs:
   submit:
@@ -25,4 +27,4 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-          BETA_TESTER_EMAIL: ${{ inputs.email }}
+          BETA_TESTER_EMAIL: ${{ inputs.email || 'dennis@kroeker.cloud' }}
