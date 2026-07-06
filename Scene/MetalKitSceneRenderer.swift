@@ -221,7 +221,7 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         guard let drawable = metalKitView.currentDrawable else { return nil }
         let texture = drawable.texture
 
-        let ciImage = CIImage(mtlTexture: texture, options: nil)
+        guard let ciImage = CIImage(mtlTexture: texture, options: nil) else { return nil }
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cgImage)
