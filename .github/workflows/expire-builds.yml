@@ -1,0 +1,38 @@
+name: Expire Old Builds
+
+on:
+  push:
+    branches: [beta/expire-builds]
+    paths:
+      - 'scripts/expire_old_builds.py'
+      - '.github/workflows/expire-builds.yml'
+  workflow_dispatch:
+
+jobs:
+  expire:
+    name: Expire builds blocking beta review
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install cryptography
+        run: pip install cryptography
+
+      - name: Expire old builds
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+        run: python3 scripts/expire_old_builds.py
+
+      - name: Submit build 135 for beta review
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+          BETA_TESTER_EMAIL: dennis@kroeker.cloud
+        run: python3 scripts/submit_beta_review.py
