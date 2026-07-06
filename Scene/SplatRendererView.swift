@@ -5,6 +5,7 @@
 #if os(iOS)
 
 import SwiftUI
+import CoreImage
 
 struct SplatRendererView: View {
     let url: URL?
@@ -14,6 +15,10 @@ struct SplatRendererView: View {
     @State private var autoRotate: Bool = false
     @State private var walkthroughActive: Bool = false
     @State private var showControls: Bool = true
+    @State private var showSettingsPanel: Bool = false
+    @State private var walkthroughSpeed: Float = 1.0
+    @State private var screenshotImage: UIImage?
+    @State private var showShareSheet: Bool = false
 
     private enum LoadState: Equatable {
         case loading
@@ -57,6 +62,11 @@ struct SplatRendererView: View {
         }
         .tint(.ciAccent)
         .animation(.easeInOut(duration: 0.25), value: loadState)
+        .sheet(isPresented: $showShareSheet) {
+            if let image = screenshotImage {
+                ShareSheet(items: [image])
+            }
+        }
         .task(id: url) {
             loadState = .loading
 
@@ -83,7 +93,8 @@ struct SplatRendererView: View {
     @ViewBuilder
     private func controlOverlay(_ renderer: MetalKitSceneRenderer) -> some View {
         VStack {
-            HStack {
+            // Top bar: action buttons
+            HStack(spacing: 16) {
                 Button {
                     autoRotate.toggle()
                     if walkthroughActive { stopWalkthrough(renderer) }
@@ -116,11 +127,24 @@ struct SplatRendererView: View {
                         .shadow(radius: 2)
                 }
 
+                Button {
+                    screenshotImage = renderer.captureSnapshot()
+                    if screenshotImage != nil {
+                        showShareSheet = true
+                    }
+                } label: {
+                    Image(systemName: "camera.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                }
+
                 Spacer()
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showControls.toggle()
+                        showSettingsPanel = false
                     }
                 } label: {
                     Image(systemName: showControls ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
@@ -132,11 +156,47 @@ struct SplatRendererView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
 
-            if showControls {
+            // Settings panel (walkthrough speed, etc.)
+            if showControls && showSettingsPanel {
+                VStack(spacing: 12) {
+                    HStack {
+                        Image(systemName: "speedometer")
+                            .foregroundStyle(.ciAccentBright)
+                        Text("Walkthrough Speed")
+                            .font(.ciCaption)
+                            .foregroundStyle(.ciTextSecondary)
+                        Spacer()
+                        Text(String(format: "%.1fx", walkthroughSpeed))
+                            .font(.ciMono)
+                            .foregroundStyle(.ciAccentBright)
+                    }
+                    Slider(value: Binding(
+                        get: { Double(walkthroughSpeed) },
+                        set: { walkthroughSpeed = Float($0); renderer.setWalkthroughSpeed(walkthroughSpeed) }
+                    ), in: 0.2...3.0, step: 0.1)
+                    .tint(.ciAccent)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            // Gesture hints
+            if showControls && !showSettingsPanel {
                 HStack(spacing: 12) {
-                    Label("1-finger drag: rotate", systemImage: "hand.draw")
+                    Label("1-finger: rotate", systemImage: "hand.draw")
                     Label("2-finger: pan", systemImage: "hand.draw.fill")
                     Label("Pinch: zoom", systemImage: "plus.magnifyingglass")
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showSettingsPanel.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.caption)
+                    }
                 }
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.8))
@@ -180,6 +240,7 @@ struct SplatRendererView: View {
         walkthroughActive = true
         autoRotate = false
         renderer.autoRotate = false
+        renderer.setWalkthroughSpeed(walkthroughSpeed)
         renderer.startWalkthrough()
     }
 
@@ -214,6 +275,18 @@ private struct LoadingOverlay: View {
             }
         }
     }
+}
+
+// MARK: - Share Sheet
+
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Error Overlay

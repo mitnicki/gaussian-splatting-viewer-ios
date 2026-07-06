@@ -119,7 +119,7 @@ platform :ios do
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
-      changelog: "v0.8.3: Auto-submit for beta review after TestFlight upload + ensure de-DE localization exists."
+      changelog: "v0.10.0: New app icon, Nextcloud connection fix, walkthrough speed control, screenshot/share button."
     )
   end
 end

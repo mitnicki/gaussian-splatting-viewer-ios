@@ -13,6 +13,7 @@ import os
 import simd
 import SplatIO
 import SwiftUI
+import UIKit
 
 /// Identity matrix helper (simd doesn't provide one directly).
 func matrix4x4_identity() -> matrix_float4x4 {
@@ -64,6 +65,11 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
 
     // Walkthrough: slow auto-orbit + gentle zoom oscillation
     private var walkthroughStartTime: Date? = nil
+    private var walkthroughSpeedMultiplier: Float = 1.0
+
+    func setWalkthroughSpeed(_ speed: Float) {
+        walkthroughSpeedMultiplier = max(0.1, speed)
+    }
 
     init?(_ metalKitView: MTKView) {
         guard let device = metalKitView.device else { return nil }
@@ -162,10 +168,11 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     private func updateRotation() {
         if walkthroughActive, let start = walkthroughStartTime {
             let elapsed = Float(Date().timeIntervalSince(start))
+            let speed = walkthroughSpeedMultiplier
             // Slow orbit
-            rotation = Angle.radians(Double(elapsed * 0.15))
+            rotation = Angle.radians(Double(elapsed * 0.15 * speed))
             // Gentle zoom oscillation: sin wave between -3 and +3
-            cameraDistance = sin(elapsed * 0.3) * 3.0
+            cameraDistance = sin(elapsed * 0.3 * speed) * 3.0
         } else if autoRotate {
             let now = Date()
             defer { lastRotationUpdateTimestamp = now }
@@ -206,6 +213,17 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         walkthroughActive = false
         walkthroughStartTime = nil
         autoRotate = false
+    }
+
+    /// Capture the current Metal drawable as a UIImage.
+    func captureSnapshot() -> UIImage? {
+        guard let view = metalKitView.currentDrawable,
+              let texture = view.texture else { return nil }
+
+        let ciImage = CIImage(mtTexture: texture, options: nil)
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     func draw(in view: MTKView) {

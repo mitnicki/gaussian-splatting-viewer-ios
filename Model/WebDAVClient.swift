@@ -51,14 +51,18 @@ struct WebDAVCredentials {
     let appPassword: String  // Nextcloud app password (not the account password)
 
     var davBaseURL: URL {
-        serverURL.appendingPathComponent("remote.php/dav/files")
+        // Build path manually to avoid appendingPathComponent encoding issues
+        // with multi-segment paths like "remote.php/dav/files"
+        serverURL.appendingPathComponent("remote.php")
+                 .appendingPathComponent("dav")
+                 .appendingPathComponent("files")
     }
 
     func url(forPath path: String) -> URL {
         // path is relative (e.g. "GaussianSplats/rc390.spz")
-        // Encode each path component separately to preserve slashes
-        let components = path.split(separator: "/").map { String($0) }
+        // Build URL segment-by-segment to avoid percent-encoding slashes
         var url = davBaseURL.appendingPathComponent(username)
+        let components = path.split(separator: "/").map { String($0) }
         for comp in components {
             url.appendPathComponent(comp)
         }

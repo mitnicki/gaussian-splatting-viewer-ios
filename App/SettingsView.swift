@@ -24,6 +24,13 @@ struct SettingsView: View {
                     .keyboardType(.URL)
                     .autocapitalization(.none)
                     .textContentType(.URL)
+                    .onChange(of: serverURLString) { _, newValue in
+                        // Auto-normalize: strip trailing slash, auto-prepend https://
+                        let normalized = Self.normalizeURL(newValue)
+                        if normalized != newValue {
+                            serverURLString = normalized
+                        }
+                    }
                 TextField("Username", text: $username,
                            prompt: Text("dennis"))
                     .autocapitalization(.none)
@@ -37,7 +44,7 @@ struct SettingsView: View {
                 Button("Test Connection") {
                     Task { await testConnection() }
                 }
-                .disabled(testingConnection || serverURLString.isEmpty || username.isEmpty)
+                .disabled(testingConnection || serverURLString.isEmpty || username.isEmpty || appPassword.isEmpty)
 
                 if testingConnection {
                     ProgressView("Testing...")
@@ -83,9 +90,28 @@ struct SettingsView: View {
 
     // MARK: - Connection test
 
+    private static func normalizeURL(_ raw: String) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty { return s }
+        // Auto-prepend https:// if user enters just a domain
+        if !s.contains("://") {
+            s = "https://" + s
+        }
+        // Strip trailing slash (Nextcloud WebDAV path builder adds its own)
+        while s.hasSuffix("/") {
+            s = String(s.dropLast())
+        }
+        return s
+    }
+
     private func testConnection() async {
-        guard let url = URL(string: serverURLString) else {
-            connectionResult = "Invalid URL"
+        let normalized = Self.normalizeURL(serverURLString)
+        if normalized != serverURLString {
+            serverURLString = normalized
+        }
+
+        guard let url = URL(string: normalized) else {
+            connectionResult = "✗ Invalid URL"
             return
         }
 
