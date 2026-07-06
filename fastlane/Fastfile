@@ -85,6 +85,12 @@ platform :ios do
       app_path = "#{archive_path}/Products/Applications/GaussianSplattingViewer.app"
       ipa_path = "#{ipa_output_dir}/GaussianSplattingViewer.ipa"
 
+      # ponytail: set build number BEFORE codesigning so the signature stays valid.
+      # Uses GitHub run_number so every upload has a unique, monotonically increasing build.
+      build_number = ENV.fetch("GITHUB_RUN_NUMBER", "1")
+      UI.message("=== Setting build number to #{build_number} ===")
+      sh("/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion #{build_number}' #{app_path}/Info.plist")
+
       # Embed provisioning profile
       sh("cp #{profile_path} #{app_path}/embedded.mobileprovision")
 
@@ -114,20 +120,9 @@ platform :ios do
       UI.message("=== IPA ready: #{ipa_path} ===")
     end
 
-    # ponytail: bump build number on the IPA's Info.plist so Apple doesn't reject
-    # duplicate uploads. Uses GitHub run_number as the build number (always increasing).
-    build_number = ENV.fetch("GITHUB_RUN_NUMBER", "1")
-    UI.message("=== Setting build number to #{build_number} ===")
-    ipa_path = File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa")
-    sh("unzip -o #{ipa_path} -d /tmp/ipa_extract >/dev/null")
-    info_plist = "/tmp/ipa_extract/Payload/GaussianSplattingViewer.app/Info.plist"
-    sh("/usr/libexec/PlistBuddy -c 'Set :CFBundleVersion #{build_number}' #{info_plist}")
-    sh("cd /tmp/ipa_extract && zip -r #{ipa_path} Payload >/dev/null")
-    sh("rm -rf /tmp/ipa_extract")
-
     upload_to_testflight(
       api_key: api_key,
-      ipa: ipa_path,
+      ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
       changelog: "v0.11.0: App icon, Nextcloud connection fix, walkthrough speed control, screenshot/share, Files picker."
