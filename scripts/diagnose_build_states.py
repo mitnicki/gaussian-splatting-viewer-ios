@@ -51,21 +51,43 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
-# Builds
-status, data = asc(conn, jwt, "GET",
-    f"/v1/apps/{app_id}/builds?limit=10&fields[builds]=version,processingState,buildAudienceType,usesNonExemptEncryption,exportComplianceState,betaAppReviewSubmission,icons,minSdkVersion,uploadedDate,expired")
-for b in data.get("data", []):
-    a = b["attributes"]
-    print(f"\nBuild {a.get('version','?')} ({b['id']}):")
-    for k, v in sorted(a.items()):
-        print(f"  {k}: {v}")
+# Builds — fetch ALL, sorted by version descending
+all_builds = []
+next_url = f"/v1/apps/{app_id}/builds?limit=200&sort=-version&fields[builds]=version,processingState,uploadedDate,expired,usesNonExemptEncryption"
+while next_url:
+    status, data = asc(conn, jwt, "GET", next_url)
+    all_builds.extend(data.get("data", []))
+    next_url = None
+    links = data.get("links", {})
+    if "next" in links:
+        next_url = links["next"].replace("https://api.appstoreconnect.apple.com", "")
 
-# Export compliance for each build
-for b in data.get("data", []):
+print(f"Total builds: {len(all_builds)}\n")
+
+for b in all_builds:
     bid = b["id"]
-    status, ed = asc(conn, jwt, "GET", f"/v1/builds/{bid}/exportCompliance")
-    print(f"\nBuild {b['attributes']['version']} exportCompliance ({status}):")
-    print(f"  {json.dumps(ed)[:300]}")
+    a = b.get("attributes", {})
+    ver = a.get("version", "?")
+    pstate = a.get("processingState", "?")
+    uploaded = a.get("uploadedDate", "?")[:19]
+    print(f"=== Build {ver} ({bid}) ===")
+    print(f"  processingState: {pstate}")
+    print(f"  uploadedDate: {uploaded}")
+
+    # Beta review submission
+    rs, rd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/betaAppReviewSubmission")
+    if rs == 200 and rd.get("data"):
+        rattrs = rd["data"].get("attributes", {})
+        print(f"  betaReviewState: {rattrs.get('betaReviewState', '?')}")
+        print(f"  submittedDate: {rattrs.get('submittedDate', '?')[:19]}")
+
+    # Build beta detail (internal/external state)
+    bs, bd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/buildBetaDetail")
+    if bs == 200 and bd.get("data"):
+        battrs = bd["data"].get("attributes", {})
+        print(f"  internalBuildState: {battrs.get('internalBuildState', '?')}")
+        print(f"  externalBuildState: {battrs.get('externalBuildState', '?')}")
+    print()
 
 # Internal group builds
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/betaGroups")
