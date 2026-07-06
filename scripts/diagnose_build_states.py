@@ -53,7 +53,7 @@ print(f"App: {app_id}")
 
 # Builds — fetch ALL, sorted by version descending
 all_builds = []
-next_url = f"/v1/apps/{app_id}/builds?limit=200&sort=-uploadedDate"
+next_url = f"/v1/apps/{app_id}/builds?limit=200"
 while next_url:
     status, data = asc(conn, jwt, "GET", next_url)
     all_builds.extend(data.get("data", []))
@@ -75,7 +75,7 @@ for b in all_builds:
     print(f"  uploadedDate: {uploaded}")
 
     # Beta review submission
-    rs, rd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/betaAppReviewSubmission")
+    rs, rd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/betaAppReviewSubmissions")
     if rs == 200 and rd.get("data"):
         rattrs = rd["data"].get("attributes", {})
         print(f"  betaReviewState: {rattrs.get('betaReviewState', '?')}")

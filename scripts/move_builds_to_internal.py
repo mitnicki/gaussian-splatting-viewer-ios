@@ -76,7 +76,7 @@ def main():
 
     # Get ALL builds (paginated)
     all_builds = []
-    next_url = f"/v1/apps/{app_id}/builds?limit=200&sort=-uploadedDate"
+    next_url = f"/v1/apps/{app_id}/builds?limit=200"
     while next_url:
         status, data = asc(conn, jwt, "GET", next_url)
         all_builds.extend(data.get("data", []))
