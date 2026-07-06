@@ -51,23 +51,24 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=50")
 builds = data.get("data", [])
 print(f"Total builds: {len(builds)}")
 
-# Find builds in WAITING_FOR_BETA_REVIEW — these block the queue
+# Print all build states for visibility
+BLOCKING_STATES = {"WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW"}
 to_expire = []
 for b in builds:
     ver = b["attributes"].get("version", "?")
     ext_state = b["attributes"].get("externalBuildState", "UNKNOWN")
     expired = b["attributes"].get("expired", False)
     proc = b["attributes"].get("processingState", "?")
-    if ext_state == "WAITING_FOR_BETA_REVIEW" and not expired:
+    print(f"  Build {ver:>3}: ext={ext_state:>30} proc={proc:>8} expired={expired}")
+    if ext_state in BLOCKING_STATES and not expired:
         to_expire.append(b)
-        print(f"  Build {ver}: {ext_state} expired={expired} — WILL EXPIRE")
 
 if not to_expire:
-    print("No builds blocking beta review. Queue is clear.")
+    print("\nNo builds blocking beta review. Queue is clear.")
     conn.close()
     sys.exit(0)
 
-# Expire each blocking build
+print(f"\n{len(to_expire)} builds blocking beta review — expiring them...")
 for b in to_expire:
     ver = b["attributes"]["version"]
     bid = b["id"]
@@ -84,6 +85,10 @@ for b in to_expire:
         print(f"  {json.dumps(data)[:300]}")
     else:
         print(f"  Expired successfully!")
+
+# Wait for propagation
+print("\nWaiting 20s for ASC propagation...")
+time.sleep(20)
 
 # Verify build 135 is now clear
 print("\n--- Checking build 135 ---")
