@@ -1,95 +1,18 @@
 // ContentView.swift
-// Main view — tabbed interface with local file picker (M1) and Nextcloud browser (M2).
+// Main view — single-tab file picker using the native iOS Files document picker.
+// Supports .ply / .splat / .spz from any Files provider (iCloud, local, Nextcloud app, etc.)
+// Also handles "Open In" from other apps via UTType declarations.
 // Adapted from MetalSplatter SampleApp's ContentView (MIT).
-//
-// M1: Local file picker for .ply / .splat / .spz
-// M2: Nextcloud WebDAV browser with download + cache
 
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @State private var selectedTab = 0
-    // Cache credentials so we don't hit UserDefaults + Keychain on every
-    // SwiftUI body re-render. Refreshed on .appear and when SettingsView
-    // posts a .nextcloudCredentialsChanged notification.
-    @State private var cachedCredentials: WebDAVCredentials?
-
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            // M1: Local file picker
-            LocalFilePickerView()
-                .tabItem {
-                    Label("Local", systemImage: "folder")
-                }
-                .tag(0)
-
-            // M2: Nextcloud WebDAV browser
-            if let creds = cachedCredentials {
-                WebDAVBrowseView(credentials: creds)
-                    .tabItem {
-                        Label("Nextcloud", systemImage: "cloud")
-                    }
-                    .tag(1)
-            } else {
-                NoCredentialsView()
-                    .tabItem {
-                        Label("Nextcloud", systemImage: "cloud.slash")
-                    }
-                    .tag(1)
-            }
-
-            // Settings
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(2)
-        }
-        .tint(.ciAccent)
-        .onAppear {
-            cachedCredentials = loadCredentials()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .nextcloudCredentialsChanged)) { _ in
-            cachedCredentials = loadCredentials()
-        }
-    }
-
-    // MARK: - Credentials
-
-    private func loadCredentials() -> WebDAVCredentials? {
-        let defaults = UserDefaults.standard
-        guard let serverStr = defaults.string(forKey: "nextcloud.serverURL"),
-              !serverStr.isEmpty,
-              let username = defaults.string(forKey: "nextcloud.username"),
-              !username.isEmpty,
-              let url = URL(string: serverStr) else {
-            return nil
-        }
-
-        let password = KeychainHelper.shared.read(account: username) ?? ""
-        guard !password.isEmpty else { return nil }
-
-        return WebDAVCredentials(serverURL: url,
-                                  username: username,
-                                  appPassword: password)
-    }
-}
-
-// MARK: - Credential change notification
-
-extension Notification.Name {
-    static let nextcloudCredentialsChanged = Notification.Name("nextcloudCredentialsChanged")
-}
-
-// MARK: - Local File Picker (M1)
-
-struct LocalFilePickerView: View {
     @State private var isPickingFile = false
-    @State private var navigationPath = NavigationPath()
+    @State private var importedFile: SplatSource?
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack {
             VStack(spacing: 24) {
                 Spacer()
 
@@ -125,72 +48,60 @@ struct LocalFilePickerView: View {
             .background(.ciBgBase)
             .fileImporter(
                 isPresented: $isPickingFile,
-                allowedContentTypes: [
-                    UTType(filenameExtension: "ply") ?? .data,
-                    UTType(filenameExtension: "splat") ?? .data,
-                    UTType(filenameExtension: "spz") ?? .data,
-                ]
+                allowedContentTypes: SplatFileTypes.all,
+                allowsMultipleSelection: false
             ) { result in
                 isPickingFile = false
                 switch result {
-                case .success(let url):
-                    // Copy security-scoped file into app's tmp dir so it stays
-                    // accessible without permanently holding the scope open.
-                    // The original approach (startAccessingSecurityScopedResource
-                    // without a matching stopAccessing) leaked file descriptors.
-                    // Using defer guarantees stopAccessing even if copy throws.
-                    let tmpURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
-                    let didStartAccessing = url.startAccessingSecurityScopedResource()
-                    defer {
-                        if didStartAccessing {
-                            url.stopAccessingSecurityScopedResource()
-                        }
-                    }
-                    do {
-                        try FileManager.default.copyItem(at: url, to: tmpURL)
-                        navigationPath.append(SplatSource(url: tmpURL))
-                    } catch {
-                        // Fallback: use original URL (may work for some providers)
-                        navigationPath.append(SplatSource(url: url))
+                case .success(let urls):
+                    if let url = urls.first {
+                        importFile(url)
                     }
                 case .failure:
                     break
                 }
             }
-            .navigationDestination(for: SplatSource.self) { source in
+            .navigationDestination(item: $importedFile) { source in
                 SplatRendererView(url: source.url)
                     .navigationTitle(source.url.lastPathComponent)
                     .navigationBarTitleDisplayMode(.inline)
             }
         }
+        .onOpenURL { url in
+            // Handle "Open In" from other apps (Files, Mail, AirDrop, etc.)
+            importFile(url)
+        }
+    }
+
+    // MARK: - File Import
+
+    private func importFile(_ url: URL) {
+        // Copy security-scoped file into app's tmp dir so it stays
+        // accessible without permanently holding the scope open.
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        do {
+            try FileManager.default.copyItem(at: url, to: tmpURL)
+            importedFile = SplatSource(url: tmpURL)
+        } catch {
+            // Fallback: use original URL (may work for some providers)
+            importedFile = SplatSource(url: url)
+        }
     }
 }
 
-// MARK: - No Credentials Placeholder
+// MARK: - Splat File Types
 
-struct NoCredentialsView: View {
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "cloud.slash")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.ciTextSecondary)
-
-                Text("Nextcloud Not Configured")
-                    .font(.ciH4)
-                    .foregroundStyle(.ciTextPrimary)
-
-                Text("Go to Settings to configure your Nextcloud server URL, username, and app password.")
-                    .font(.ciCaption)
-                    .foregroundStyle(.ciTextSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.ciBgBase)
-            .navigationTitle("Nextcloud")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
+enum SplatFileTypes {
+    static let all: [UTType] = [
+        UTType(filenameExtension: "ply") ?? .data,
+        UTType(filenameExtension: "splat") ?? .data,
+        UTType(filenameExtension: "spz") ?? .data,
+    ]
 }

@@ -68,10 +68,45 @@ targets:
             dkroeker.de:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: cloud.dkroeker.GaussianSplattingViewer.ply
+            UTTypeDescription: Gaussian Splatting PLY File
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - ply
+          - UTTypeIdentifier: cloud.dkroeker.GaussianSplattingViewer.splat
+            UTTypeDescription: Gaussian Splatting Splat File
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - splat
+          - UTTypeIdentifier: cloud.dkroeker.GaussianSplattingViewer.spz
+            UTTypeDescription: Compressed Gaussian Splatting File
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - spz
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: PLY Splat File
+            CFBundleTypeRole: Viewer
+            LSItemContentTypes:
+              - cloud.dkroeker.GaussianSplattingViewer.ply
+          - CFBundleTypeName: Splat File
+            CFBundleTypeRole: Viewer
+            LSItemContentTypes:
+              - cloud.dkroeker.GaussianSplattingViewer.splat
+          - CFBundleTypeName: SPZ Splat File
+            CFBundleTypeRole: Viewer
+            LSItemContentTypes:
+              - cloud.dkroeker.GaussianSplattingViewer.spz
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
-        MARKETING_VERSION: "0.10.0"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "0.11.0"
+        CURRENT_PROJECT_VERSION: "15"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}
