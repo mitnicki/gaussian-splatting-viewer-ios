@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expire old builds to unblock beta review queue."""
+"""Expire old builds blocking beta review."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -47,20 +47,30 @@ app_id = data["data"][0]["id"]
 print(f"App: {app_id}")
 
 # Get all builds
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=50")
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=200")
 builds = data.get("data", [])
-print(f"Total builds: {len(builds)}")
+print(f"Total builds: {len(builds)}\n")
 
-# Print all build states for visibility
+# Check each build's beta detail to find externalBuildState
 BLOCKING_STATES = {"WAITING_FOR_BETA_REVIEW", "IN_BETA_REVIEW"}
 to_expire = []
 for b in builds:
     ver = b["attributes"].get("version", "?")
-    ext_state = b["attributes"].get("externalBuildState", "UNKNOWN")
+    bid = b["id"]
     expired = b["attributes"].get("expired", False)
     proc = b["attributes"].get("processingState", "?")
-    print(f"  Build {ver:>3}: ext={ext_state:>30} proc={proc:>8} expired={expired}")
-    if ext_state in BLOCKING_STATES and not expired:
+    # Fetch buildBetaDetail for externalBuildState
+    bs, bd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/buildBetaDetail")
+    ext_state = "UNKNOWN"
+    int_state = "UNKNOWN"
+    if bs == 200 and bd.get("data"):
+        battrs = bd["data"].get("attributes", {})
+        ext_state = battrs.get("externalBuildState", "UNKNOWN")
+        int_state = battrs.get("internalBuildState", "UNKNOWN")
+    blocking = ext_state in BLOCKING_STATES and not expired
+    flag = " *** BLOCKING ***" if blocking else ""
+    print(f"  Build {ver:>3}: ext={ext_state:>30} int={int_state:>20} expired={expired}{flag}")
+    if blocking:
         to_expire.append(b)
 
 if not to_expire:
@@ -74,11 +84,7 @@ for b in to_expire:
     bid = b["id"]
     print(f"\nExpiring build {ver} ({bid})...")
     status, data = asc(conn, jwt, "PATCH", f"/v1/builds/{bid}", {
-        "data": {
-            "type": "builds",
-            "id": bid,
-            "attributes": {"expired": True}
-        }
+        "data": {"type": "builds", "id": bid, "attributes": {"expired": True}}
     })
     print(f"  Result: {status}")
     if status != 200:
@@ -86,16 +92,18 @@ for b in to_expire:
     else:
         print(f"  Expired successfully!")
 
-# Wait for propagation
 print("\nWaiting 20s for ASC propagation...")
 time.sleep(20)
 
-# Verify build 135 is now clear
+# Verify build 135
 print("\n--- Checking build 135 ---")
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=50")
-for b in data.get("data", []):
+for b in builds:
     if b["attributes"].get("version") == "135":
-        print(f"Build 135: ext={b['attributes'].get('externalBuildState')} expired={b['attributes'].get('expired')}")
+        bid = b["id"]
+        bs, bd = asc(conn, jwt, "GET", f"/v1/builds/{bid}/buildBetaDetail")
+        if bs == 200 and bd.get("data"):
+            ext = bd["data"]["attributes"].get("externalBuildState", "?")
+            print(f"Build 135: ext={ext} expired={b['attributes'].get('expired')}")
         break
 
 conn.close()
