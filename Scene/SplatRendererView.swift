@@ -6,6 +6,7 @@
 
 import SwiftUI
 import CoreImage
+import simd
 
 struct SplatRendererView: View {
     let url: URL?
@@ -14,6 +15,7 @@ struct SplatRendererView: View {
     @State private var renderer: MetalKitSceneRenderer?
     @State private var autoRotate: Bool = false
     @State private var walkthroughActive: Bool = false
+    @State private var walkthroughPaused: Bool = false
     @State private var showControls: Bool = true
     @State private var showSettingsPanel: Bool = false
     @State private var walkthroughSpeed: Float = 1.0
@@ -107,9 +109,21 @@ struct SplatRendererView: View {
                 }
 
                 Button {
-                    if walkthroughActive { stopWalkthrough(renderer) } else { startWalkthrough(renderer) }
+                    if walkthroughActive {
+                        if walkthroughPaused {
+                            renderer.resumeWalkthrough()
+                            walkthroughPaused = false
+                        } else {
+                            renderer.pauseWalkthrough()
+                            walkthroughPaused = true
+                        }
+                    } else {
+                        startWalkthrough(renderer)
+                    }
                 } label: {
-                    Image(systemName: walkthroughActive ? "stop.fill" : "figure.walk")
+                    Image(systemName: walkthroughActive
+                          ? (walkthroughPaused ? "play.circle.fill" : "pause.circle.fill")
+                          : "figure.walk")
                         .font(.title2)
                         .foregroundStyle(walkthroughActive ? .ciAccent : .white)
                         .shadow(radius: 2)
@@ -119,6 +133,7 @@ struct SplatRendererView: View {
                     renderer.resetView()
                     autoRotate = false
                     walkthroughActive = false
+                    walkthroughPaused = false
                     renderer.autoRotate = false
                 } label: {
                     Image(systemName: "arrow.counterclockwise.circle.fill")
@@ -185,10 +200,10 @@ struct SplatRendererView: View {
 
             // Gesture hints
             if showControls && !showSettingsPanel {
-                HStack(spacing: 12) {
-                    Label("1-finger: rotate", systemImage: "hand.draw")
-                    Label("2-finger: pan", systemImage: "hand.draw.fill")
+                HStack(spacing: 10) {
+                    Label("Drag: rotate", systemImage: "hand.draw")
                     Label("Pinch: zoom", systemImage: "plus.magnifyingglass")
+                    Label("Joystick: look", systemImage: "gamecontroller")
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showSettingsPanel.toggle()
@@ -209,9 +224,19 @@ struct SplatRendererView: View {
 
             Spacer()
 
-            // Zoom control buttons — right-aligned vertical stack
-            HStack {
+            // Bottom controls: virtual joystick (left) + zoom buttons (right)
+            HStack(alignment: .bottom) {
+                // Virtual look joystick — bottom left
+                VirtualJoystick { input in
+                    renderer.handleJoystick(input)
+                }
+                .frame(width: 100, height: 100)
+                .padding(.leading, 16)
+                .padding(.bottom, 20)
+
                 Spacer()
+
+                // Zoom buttons — bottom right
                 VStack(spacing: 12) {
                     Button {
                         renderer.zoomIn()
@@ -246,7 +271,62 @@ struct SplatRendererView: View {
 
     private func stopWalkthrough(_ renderer: MetalKitSceneRenderer) {
         walkthroughActive = false
+        walkthroughPaused = false
         renderer.stopWalkthrough()
+    }
+}
+
+// MARK: - Virtual Joystick
+
+/// A simple virtual joystick for look control (yaw/pitch).
+/// Drag inside the circle to rotate the camera; release to center.
+private struct VirtualJoystick: View {
+    let onChange: (SIMD2<Float>) -> Void
+
+    @State private var dragOffset: CGSize = .zero
+    private let radius: CGFloat = 45
+
+    var body: some View {
+        GeometryReader { geo in
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial.opacity(0.4))
+                    .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+
+                Circle()
+                    .fill(Color.ciAccent.opacity(0.6))
+                    .frame(width: 28, height: 28)
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                    .offset(dragOffset)
+            }
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+                        let dist = sqrt(dx * dx + dy * dy)
+                        let clamped = min(dist, radius)
+                        let angle = atan2(dy, dx)
+                        let cx = cos(angle) * clamped
+                        let cy = sin(angle) * clamped
+                        dragOffset = CGSize(width: cx, height: cy)
+
+                        // Normalized -1...1 (x=yaw, y=pitch, inverted Y for natural feel)
+                        let nx = Float(cx / radius)
+                        let ny = Float(cy / radius)
+                        onChange(SIMD2<Float>(nx, -ny))
+                    }
+                    .onEnded { _ in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            dragOffset = .zero
+                        }
+                        onChange(.zero)
+                    }
+            )
+        }
     }
 }
 

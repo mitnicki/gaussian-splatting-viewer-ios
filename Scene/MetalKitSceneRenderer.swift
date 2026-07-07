@@ -58,18 +58,37 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
     var cameraDistance: Float = 0  // offset from default, zoom in/out
     var panOffset: SIMD2<Float> = .zero  // screen-space pan
     var walkthroughActive: Bool = false
+    var walkthroughPaused: Bool = false
+
+    // Virtual joystick input (normalized -1...1, x=yaw, y=pitch)
+    var joystickInput: SIMD2<Float> = .zero
 
     private let zoomStep: Float = 0.6
 
     func zoomIn() { cameraDistance = min(cameraDistance + zoomStep, 15.0) }
     func zoomOut() { cameraDistance = max(cameraDistance - zoomStep, -7.0) }
 
-    // Walkthrough: slow auto-orbit + gentle zoom oscillation
+    // Walkthrough: flythrough camera path through 3D space
     private var walkthroughStartTime: Date? = nil
+    private var walkthroughPausedAt: Date? = nil
+    private var walkthroughElapsedOffset: Float = 0  // accumulated time before pause
     private var walkthroughSpeedMultiplier: Float = 1.0
+    // Current flythrough camera position (offset from default)
+    private var walkthroughCameraPos: SIMD3<Float> = .zero
+    private var walkthroughCameraZoom: Float = 0
 
     func setWalkthroughSpeed(_ speed: Float) {
         walkthroughSpeedMultiplier = max(0.1, speed)
+    }
+
+    func handleJoystick(_ input: SIMD2<Float>) {
+        joystickInput = input
+    }
+
+    private func walkthroughElapsed() -> Float {
+        guard let start = walkthroughStartTime else { return 0 }
+        let now = walkthroughPaused ? (walkthroughPausedAt ?? Date()) : Date()
+        return walkthroughElapsedOffset + Float(now.timeIntervalSince(start))
     }
 
     init?(_ metalKitView: MTKView) {
@@ -149,8 +168,14 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
             : matrix4x4_identity()
 
         let manualRotationMatrix = matrix4x4_from_quaternion(manualRotation)
+
+        // Walkthrough flythrough: apply camera position offset in addition to rotation
+        let flythroughMatrix = walkthroughActive
+            ? matrix4x4_translation(walkthroughCameraPos.x, walkthroughCameraPos.y, walkthroughCameraPos.z)
+            : matrix4x4_identity()
+
         let rotationMatrix = manualRotationMatrix * autoRotationMatrix
-        let translationMatrix = matrix4x4_translation(panOffset.x, panOffset.y, Constants.modelCenterZ + zoom)
+        let translationMatrix = matrix4x4_translation(panOffset.x, panOffset.y, Constants.modelCenterZ + zoom + walkthroughCameraZoom)
         // Turn common 3D GS PLY files rightside-up (matches upstream SampleApp default).
         let commonUpCalibration = matrix4x4_rotation(radians: .pi, axis: SIMD3<Float>(0, 0, 1))
 
@@ -161,24 +186,39 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         return ModelRendererViewportDescriptor(
             viewport: viewport,
             projectionMatrix: projectionMatrix,
-            viewMatrix: translationMatrix * rotationMatrix * commonUpCalibration,
+            viewMatrix: translationMatrix * flythroughMatrix * rotationMatrix * commonUpCalibration,
             screenSize: SIMD2(x: Int(drawableSize.width), y: Int(drawableSize.height))
         )
     }
 
     private func updateRotation() {
-        if walkthroughActive, let start = walkthroughStartTime {
-            let elapsed = Float(Date().timeIntervalSince(start))
+        if walkthroughActive && !walkthroughPaused {
+            let elapsed = walkthroughElapsed()
             let speed = walkthroughSpeedMultiplier
-            // Slow orbit
-            rotation = Angle.radians(Double(elapsed * 0.15 * speed))
-            // Gentle zoom oscillation: sin wave between -3 and +3
-            cameraDistance = sin(elapsed * 0.3 * speed) * 3.0
+            // Smooth figure-8 flythrough path in XZ plane + gentle Y oscillation
+            let t = elapsed * speed
+            walkthroughCameraPos = SIMD3<Float>(
+                sin(t * 0.12) * 3.5,          // X: gentle left-right
+                sin(t * 0.08) * 1.5,           // Y: gentle up-down
+                sin(t * 0.06) * 2.0            // Z: forward-backward
+            )
+            // Slow rotation during flythrough
+            rotation = Angle.radians(Double(t * 0.05))
+            // Breathing zoom
+            walkthroughCameraZoom = sin(t * 0.1) * 1.0
         } else if autoRotate {
             let now = Date()
             defer { lastRotationUpdateTimestamp = now }
             guard let lastRotationUpdateTimestamp else { return }
             rotation += Constants.rotationPerSecond * now.timeIntervalSince(lastRotationUpdateTimestamp)
+        }
+
+        // Virtual joystick: apply live look rotation
+        if joystickInput != .zero {
+            let sensitivity: Float = 0.03
+            let yawQuat = simd_quatf(angle: joystickInput.x * sensitivity, axis: SIMD3<Float>(0, 1, 0))
+            let pitchQuat = simd_quatf(angle: joystickInput.y * sensitivity, axis: SIMD3<Float>(1, 0, 0))
+            manualRotation = yawQuat * manualRotation * pitchQuat
         }
     }
 
@@ -201,18 +241,42 @@ final class MetalKitSceneRenderer: NSObject, MTKViewDelegate {
         panOffset = .zero
         manualRotation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
         rotation = .zero
+        joystickInput = .zero
         stopWalkthrough()
     }
 
     func startWalkthrough() {
         walkthroughActive = true
+        walkthroughPaused = false
         walkthroughStartTime = Date()
+        walkthroughElapsedOffset = 0
+        walkthroughCameraPos = .zero
+        walkthroughCameraZoom = 0
         autoRotate = true
+    }
+
+    func pauseWalkthrough() {
+        guard walkthroughActive, !walkthroughPaused else { return }
+        walkthroughPaused = true
+        walkthroughPausedAt = Date()
+        walkthroughElapsedOffset = walkthroughElapsed()
+    }
+
+    func resumeWalkthrough() {
+        guard walkthroughActive, walkthroughPaused else { return }
+        walkthroughPaused = false
+        walkthroughStartTime = Date()
+        walkthroughPausedAt = nil
     }
 
     func stopWalkthrough() {
         walkthroughActive = false
+        walkthroughPaused = false
         walkthroughStartTime = nil
+        walkthroughPausedAt = nil
+        walkthroughElapsedOffset = 0
+        walkthroughCameraPos = .zero
+        walkthroughCameraZoom = 0
         autoRotate = false
     }
 
