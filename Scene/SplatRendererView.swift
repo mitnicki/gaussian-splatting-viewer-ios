@@ -230,7 +230,6 @@ struct SplatRendererView: View {
                 VirtualJoystick { input in
                     renderer.handleJoystick(input)
                 }
-                .frame(width: 100, height: 100)
                 .padding(.leading, 16)
                 .padding(.bottom, 20)
 
@@ -287,46 +286,42 @@ private struct VirtualJoystick: View {
     private let radius: CGFloat = 45
 
     var body: some View {
-        GeometryReader { geo in
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+        ZStack {
+            Circle()
+                .fill(.ultraThinMaterial.opacity(0.4))
+                .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
 
-            ZStack {
-                Circle()
-                    .fill(.ultraThinMaterial.opacity(0.4))
-                    .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
-
-                Circle()
-                    .fill(Color.ciAccent.opacity(0.6))
-                    .frame(width: 28, height: 28)
-                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-                    .offset(dragOffset)
-            }
-            .contentShape(Circle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let dx = value.translation.width
-                        let dy = value.translation.height
-                        let dist = sqrt(dx * dx + dy * dy)
-                        let clamped = min(dist, radius)
-                        let angle = atan2(dy, dx)
-                        let cx = cos(angle) * clamped
-                        let cy = sin(angle) * clamped
-                        dragOffset = CGSize(width: cx, height: cy)
-
-                        // Normalized -1...1 (x=yaw, y=pitch, inverted Y for natural feel)
-                        let nx = Float(cx / radius)
-                        let ny = Float(cy / radius)
-                        onChange(SIMD2<Float>(nx, -ny))
-                    }
-                    .onEnded { _ in
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            dragOffset = .zero
-                        }
-                        onChange(.zero)
-                    }
-            )
+            Circle()
+                .fill(Color.ciAccent.opacity(0.6))
+                .frame(width: 28, height: 28)
+                .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                .offset(dragOffset)
         }
+        .frame(width: 90, height: 90)
+        .contentShape(Circle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    let dx = value.translation.width
+                    let dy = value.translation.height
+                    let dist = sqrt(dx * dx + dy * dy)
+                    let clamped = min(dist, radius)
+                    let angle = atan2(dy, dx)
+                    let cx = cos(angle) * clamped
+                    let cy = sin(angle) * clamped
+                    dragOffset = CGSize(width: cx, height: cy)
+
+                    let nx = Float(cx / radius)
+                    let ny = Float(cy / radius)
+                    onChange(SIMD2<Float>(nx, -ny))
+                }
+                .onEnded { _ in
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        dragOffset = .zero
+                    }
+                    onChange(.zero)
+                }
+        )
     }
 }
 
