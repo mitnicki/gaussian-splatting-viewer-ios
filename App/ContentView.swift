@@ -31,7 +31,7 @@ struct ContentView: View {
                     
                     // Feature hints
                     VStack(spacing: 4) {
-                        Text("Tap "Try Demo" or open a file to access:")
+                        Text("Tap 'Try Demo' or open a file to access:")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.ciTextSecondary)
                         Text("Walkthrough · Joystick · Zoom · Screenshot")
