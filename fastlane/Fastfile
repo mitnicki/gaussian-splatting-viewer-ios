@@ -125,7 +125,7 @@ platform :ios do
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
-      changelog: "v0.13.0: Flythrough walkthrough (auto camera path), virtual joystick (look control), pause/resume walkthrough, zoom buttons, screenshot/share, gesture hints. Open a .splat/.ply/.spz file to see all features."
+      changelog: "v0.14.0: Try Demo button on home screen — loads a bundled sample scene instantly, no file needed. All features (walkthrough, joystick, zoom, screenshot) visible immediately. Open a .splat/.ply/.spz file for your own scenes."
     )
   end
 end

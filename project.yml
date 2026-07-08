@@ -33,6 +33,9 @@ targets:
       - path: Fonts
         type: folder
         buildPhase: resources
+      - path: Resources
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: MetalSplatter
         product: MetalSplatter
@@ -106,7 +109,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cloud.dkroeker.GaussianSplattingViewer
-        MARKETING_VERSION: "0.13.0"
-        CURRENT_PROJECT_VERSION: "130"
+        MARKETING_VERSION: "0.14.0"
+        CURRENT_PROJECT_VERSION: "140"
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}

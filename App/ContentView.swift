@@ -31,7 +31,7 @@ struct ContentView: View {
                     
                     // Feature hints
                     VStack(spacing: 4) {
-                        Text("Open a file to access:")
+                        Text("Tap "Try Demo" or open a file to access:")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.ciTextSecondary)
                         Text("Walkthrough · Joystick · Zoom · Screenshot")
@@ -43,15 +43,28 @@ struct ContentView: View {
 
                 Spacer()
 
-                Button {
-                    isPickingFile = true
-                } label: {
-                    Label("Open Splat File", systemImage: "folder")
-                        .frame(maxWidth: 240)
+                HStack(spacing: 12) {
+                    Button {
+                        isPickingFile = true
+                    } label: {
+                        Label("Open Splat File", systemImage: "folder")
+                            .frame(maxWidth: 180)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(isPickingFile)
+
+                    Button {
+                        if let demoURL = Bundle.main.url(forResource: "demo_scene", withExtension: "splat") {
+                            importedFile = SplatSource(url: demoURL)
+                        }
+                    } label: {
+                        Label("Try Demo", systemImage: "sparkles")
+                            .frame(maxWidth: 120)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(isPickingFile)
 
                 Spacer()
             }
