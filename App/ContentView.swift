@@ -28,6 +28,17 @@ struct ContentView: View {
                     Text("Native Metal renderer — .ply / .splat / .spz")
                         .font(.ciCaption)
                         .foregroundStyle(.ciTextSecondary)
+                    
+                    // Feature hints
+                    VStack(spacing: 4) {
+                        Text("Open a file to access:")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.ciTextSecondary)
+                        Text("Walkthrough · Joystick · Zoom · Screenshot")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.ciTextSecondary.opacity(0.7))
+                    }
+                    .padding(.top, 8)
                 }
 
                 Spacer()

@@ -125,7 +125,7 @@ platform :ios do
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
-      changelog: "v0.11.0: App icon, Nextcloud connection fix, walkthrough speed control, screenshot/share, Files picker."
+      changelog: "v0.13.0: Flythrough walkthrough (auto camera path), virtual joystick (look control), pause/resume walkthrough, zoom buttons, screenshot/share, gesture hints. Open a .splat/.ply/.spz file to see all features."
     )
   end
 end
