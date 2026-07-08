@@ -33,7 +33,7 @@ targets:
       - path: Fonts
         type: folder
         buildPhase: resources
-      - path: Resources
+      - path: DemoData
         type: folder
         buildPhase: resources
     dependencies:
