@@ -1,0 +1,34 @@
+name: Submit App Store Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: "App Store version string (e.g. 1.0.0)"
+        required: true
+        type: string
+        default: "1.0.0"
+      price_tier:
+        description: "App Store price tier (3 = 2.99 EUR)"
+        required: true
+        type: string
+        default: "3"
+
+jobs:
+  submit-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cryptography
+        run: pip install cryptography
+      - name: Submit App Store review
+        run: python3 scripts/submit_app_store_review.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+          APP_VERSION: ${{ inputs.app_version }}
+          PRICE_TIER: ${{ inputs.price_tier }}
