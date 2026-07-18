@@ -34,7 +34,7 @@ struct ContentView: View {
                         Text("Tap 'Try Demo' or open a file to access:")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.ciTextSecondary)
-                        Text("Walkthrough · Joystick · Zoom · Screenshot")
+                        Text("Rotate · Zoom · Screenshot · Auto-rotate")
                             .font(.system(size: 11))
                             .foregroundStyle(.ciTextSecondary.opacity(0.7))
                     }

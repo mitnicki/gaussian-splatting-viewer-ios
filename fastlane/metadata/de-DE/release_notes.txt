@@ -1,0 +1,8 @@
+Erstveröffentlichung — Gaussian Splatting Viewer v1.0.0.
+
+- Native Metal-Rendering für .ply/.splat/.spz Dateien
+- Zuverlässiges Laden großer Splat-Files (1 GB+)
+- Demo-Szene zum sofortigen Testen
+- Intuitive Gesten: Drehen, Zoomen, Reset
+- Screenshot & Teilen
+- iOS Files-Integration (iCloud, AirDrop, Nextcloud, uvm.)

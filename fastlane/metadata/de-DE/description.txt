@@ -1,0 +1,35 @@
+Gaussian Splatting Viewer ist die erste native iOS-App, die große Gaussian-Splatting-Dateien zuverlässig und in voller Auflösung auf dem iPhone rendert.
+
+### Warum diese App?
+
+iOS Safari hat ein hartes WebGL-Speicherlimit von ~384 MB pro Tab. Große Splat-Dateien (500 MB bis 1 GB+) sind im Browser schlichtweg nicht darstellbar — die Seite stürzt ab oder lädt endlos. Gaussian Splatting Viewer nutzt Apples Metal-Framework direkt und hat Zugriff auf den vollen Gerätespeicher (5–6 GB auf iPhone 15/16 Pro). Das bedeutet: große Splat-Files laden in Sekunden, in voller Qualität, bei 60 FPS.
+
+### Hauptmerkmale
+
+- **Große Dateien zuverlässig rendern** — Der USP. .ply/.splat/.spz Dateien bis 1 GB+ laden und flüssig anzeigen. Keine andere iOS-App kann das.
+- **Metal-Beschleunigung** — Native Metal Compute-Shader für maximale Performance. Kein WebGL, keine Browser-Limits.
+- **Universelle Formatunterstützung** — .ply, .splat und .spz (Niantic's komprimiertes Format, 9× Kompression bei voller Qualität).
+- **Dateien von überall öffnen** — iOS Files-App-Integration: iCloud Drive, lokaler Speicher, AirDrop, Nextcloud, Dropbox, Google Drive oder jeder andere Files-Provider.
+- **Demo-Szene inklusive** — Testen Sie die App sofort mit der mitgelieferten Demo-Szene.
+- **Intuitive Gesten** — Drag zum Drehen, Pinch zum Zoomen, Reset-Ansicht.
+- **Screenshot & Teilen** — Ansicht erfassen und direkt teilen.
+- "Open In" aus anderen Apps — Dateien direkt aus Mail, AirDrop oder der Files-App öffnen.
+
+### Anwendungsbereiche
+
+- **3D-Scanning & Photogrammetrie** — Scans von Polycam, Luma, Scaniverse oder eigenen Gaussian-Splatting-Pipelines auf dem iPhone ansehen.
+- **Forschung & Entwicklung** — Gaussian-Splatting-Modelle unterwegs evaluieren.
+- **Architektur & Immobilien** — Große 3D-Scans von Räumen und Gebäuden vor Ort präsentieren.
+- **Kultur- & Denkmalschutz** — High-Fidelity-Scans von Denkmalen und Artefakten anzeigen.
+
+### Technische Details
+
+- Renderer: MetalSplatter (Metal Compute Shaders)
+- Formate: .ply, .splat, .spz
+- Kompatibilität: iPhone und iPad mit iOS 18.0+
+- Keine Server-Kosten, keine Cloud-Abhängigkeit — alle Dateien bleiben lokal auf dem Gerät.
+- Keine Werbung, kein Tracking, keine versteckten Kosten.
+
+### Lizenz
+
+MIT-lizenziert. Basiert auf MetalSplatter (MIT) und Niantic spz (MIT).

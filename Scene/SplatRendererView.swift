@@ -108,29 +108,31 @@ struct SplatRendererView: View {
                         .shadow(radius: 2)
                 }
 
-                Button {
-                    if walkthroughActive {
-                        if walkthroughPaused {
-                            renderer.resumeWalkthrough()
-                            walkthroughPaused = false
+                if FeatureFlags.walkthroughEnabled {
+                    Button {
+                        if walkthroughActive {
+                            if walkthroughPaused {
+                                renderer.resumeWalkthrough()
+                                walkthroughPaused = false
+                            } else {
+                                renderer.pauseWalkthrough()
+                                walkthroughPaused = true
+                            }
                         } else {
-                            renderer.pauseWalkthrough()
-                            walkthroughPaused = true
+                            startWalkthrough(renderer)
                         }
-                    } else {
-                        startWalkthrough(renderer)
+                    } label: {
+                        VStack(spacing: 2) {
+                            Image(systemName: walkthroughActive
+                                  ? (walkthroughPaused ? "play.circle.fill" : "pause.circle.fill")
+                                  : "figure.walk")
+                                .font(.title2)
+                            Text(walkthroughActive ? (walkthroughPaused ? "Resume" : "Pause") : "Walk")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(walkthroughActive ? .ciAccent : .white)
+                        .shadow(radius: 2)
                     }
-                } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: walkthroughActive
-                              ? (walkthroughPaused ? "play.circle.fill" : "pause.circle.fill")
-                              : "figure.walk")
-                            .font(.title2)
-                        Text(walkthroughActive ? (walkthroughPaused ? "Resume" : "Pause") : "Walk")
-                            .font(.system(size: 9, weight: .medium))
-                    }
-                    .foregroundStyle(walkthroughActive ? .ciAccent : .white)
-                    .shadow(radius: 2)
                 }
 
                 Button {
@@ -175,8 +177,8 @@ struct SplatRendererView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
 
-            // Settings panel (walkthrough speed, etc.)
-            if showControls && showSettingsPanel {
+            // Settings panel (walkthrough speed, etc.) — hidden when walkthrough disabled
+            if FeatureFlags.walkthroughEnabled && showControls && showSettingsPanel {
                 VStack(spacing: 12) {
                     HStack {
                         Image(systemName: "speedometer")
@@ -207,14 +209,15 @@ struct SplatRendererView: View {
                 HStack(spacing: 10) {
                     Label("Drag: rotate", systemImage: "hand.draw")
                     Label("Pinch: zoom", systemImage: "plus.magnifyingglass")
-                    Label("Joystick: look", systemImage: "gamecontroller")
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showSettingsPanel.toggle()
+                    if FeatureFlags.walkthroughEnabled {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showSettingsPanel.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.caption)
                         }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.caption)
                     }
                 }
                 .font(.caption2)
@@ -230,12 +233,14 @@ struct SplatRendererView: View {
 
             // Bottom controls: virtual joystick (left) + zoom buttons (right)
             HStack(alignment: .bottom) {
-                // Virtual look joystick — bottom left
-                VirtualJoystick { input in
-                    renderer.handleJoystick(input)
+                // Virtual look joystick — bottom left (deferred to v1.1+)
+                if FeatureFlags.joystickEnabled {
+                    VirtualJoystick { input in
+                        renderer.handleJoystick(input)
+                    }
+                    .padding(.leading, 16)
+                    .padding(.bottom, 20)
                 }
-                .padding(.leading, 16)
-                .padding(.bottom, 20)
 
                 Spacer()
 

@@ -125,7 +125,27 @@ platform :ios do
       ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
       skip_waiting_for_build_processing: false,
       uses_non_exempt_encryption: false,
-      changelog: "v0.14.0: Try Demo button on home screen — loads a bundled sample scene instantly, no file needed. All features (walkthrough, joystick, zoom, screenshot) visible immediately. Open a .splat/.ply/.spz file for your own scenes."
+      changelog: "v1.0.0: App Store launch build. Core features: open .ply/.splat/.spz files, Metal rendering, demo scene, rotate/zoom/screenshot, auto-rotate. Walkthrough and joystick deferred to v1.1+."
+    )
+  end
+
+  desc "Submit app metadata and IPA to App Store Review"
+  lane :release do
+    app_id = "cloud.dkroeker.GaussianSplattingViewer"
+
+    deliver(
+      api_key: api_key,
+      app_identifier: app_id,
+      metadata_path: "fastlane/metadata",
+      ipa: File.join(REPO_ROOT, "build/ipa/GaussianSplattingViewer.ipa"),
+      submit_for_review: true,
+      force: true,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false,
+      submission_information: {
+        add_id_info_uses_idfa: false
+      },
+      price_tier: 3
     )
   end
 end

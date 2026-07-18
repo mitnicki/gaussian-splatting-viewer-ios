@@ -1,0 +1,35 @@
+Gaussian Splatting Viewer is the first native iOS app that reliably renders large Gaussian Splatting files in full resolution on iPhone.
+
+### Why this app?
+
+iOS Safari caps a single WebGL tab at ~384 MB. Large splat files (500 MB to 1 GB+) are physically unrenderable in-browser — the page crashes or loads forever. Gaussian Splatting Viewer uses Apple's Metal framework directly, with access to the full device memory (5–6 GB on iPhone 15/16 Pro). Large splat files load in seconds, at full fidelity, at 60 FPS.
+
+### Key Features
+
+- **Reliably render large files** — The USP. Load and display .ply/.splat/.spz files up to 1 GB+. No other iOS app can do this.
+- **Metal acceleration** — Native Metal compute shaders for maximum performance. No WebGL, no browser limits.
+- **Universal format support** — .ply, .splat, and .spz (Niantic's compressed format, 9× compression at full quality).
+- **Open from anywhere** — iOS Files app integration: iCloud Drive, local storage, AirDrop, Nextcloud, Dropbox, Google Drive, or any Files provider.
+- **Demo scene included** — Try the app immediately with a bundled sample scene.
+- **Intuitive gestures** — Drag to rotate, pinch to zoom, reset view.
+- **Screenshot & share** — Capture the current view and share it instantly.
+- "Open In" from other apps — Open files directly from Mail, AirDrop, or the Files app.
+
+### Use Cases
+
+- **3D Scanning & Photogrammetry** — View scans from Polycam, Luma, Scaniverse, or your own Gaussian Splatting pipelines on iPhone.
+- **Research & Development** — Evaluate Gaussian Splatting models on the go.
+- **Architecture & Real Estate** — Present large 3D scans of rooms and buildings on-site.
+- **Cultural Heritage** — Display high-fidelity scans of monuments and artifacts.
+
+### Technical Details
+
+- Renderer: MetalSplatter (Metal compute shaders)
+- Formats: .ply, .splat, .spz
+- Compatibility: iPhone and iPad with iOS 18.0+
+- No server costs, no cloud dependency — all files stay local on device.
+- No ads, no tracking, no hidden costs.
+
+### License
+
+MIT licensed. Built on MetalSplatter (MIT) and Niantic spz (MIT).
