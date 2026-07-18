@@ -148,4 +148,30 @@ platform :ios do
       price_tier: 3
     )
   end
+
+  desc "Deliver metadata only (no binary upload)"
+  lane :deliver_metadata do
+    deliver(
+      api_key: api_key,
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer",
+      metadata_path: "fastlane/metadata",
+      skip_binary_upload: true,
+      force: true,
+      price_tier: 3,
+      automatic_release: false
+    )
+  end
+
+  desc "Submit to App Store Review (metadata only, no binary)"
+  lane :submit_review do
+    deliver(
+      api_key: api_key,
+      app_identifier: "cloud.dkroeker.GaussianSplattingViewer",
+      metadata_path: "fastlane/metadata",
+      skip_binary_upload: true,
+      submit_for_review: true,
+      force: true,
+      automatic_release: true
+    )
+  end
 end

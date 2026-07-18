@@ -1,0 +1,39 @@
+name: App Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action: deliver_metadata or submit_review"
+        required: true
+        type: choice
+        default: "deliver_metadata"
+        options:
+          - deliver_metadata
+          - submit_review
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+
+      - name: Install fastlane
+        run: gem install fastlane --no-document
+
+      - name: Deliver metadata or submit review
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "submit_review" ]; then
+            fastlane submit_review
+          else
+            fastlane deliver_metadata
+          fi
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
