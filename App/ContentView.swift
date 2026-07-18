@@ -55,7 +55,7 @@ struct ContentView: View {
                     .disabled(isPickingFile)
 
                     Button {
-                        if let demoURL = Bundle.main.url(forResource: "demo_scene", withExtension: "splat") {
+                        if let demoURL = Bundle.main.url(forResource: "demo_scene", withExtension: "splat", subdirectory: "DemoData") {
                             importedFile = SplatSource(url: demoURL)
                         }
                     } label: {

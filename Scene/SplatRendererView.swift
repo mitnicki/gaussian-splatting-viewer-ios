@@ -121,12 +121,16 @@ struct SplatRendererView: View {
                         startWalkthrough(renderer)
                     }
                 } label: {
-                    Image(systemName: walkthroughActive
-                          ? (walkthroughPaused ? "play.circle.fill" : "pause.circle.fill")
-                          : "figure.walk")
-                        .font(.title2)
-                        .foregroundStyle(walkthroughActive ? .ciAccent : .white)
-                        .shadow(radius: 2)
+                    VStack(spacing: 2) {
+                        Image(systemName: walkthroughActive
+                              ? (walkthroughPaused ? "play.circle.fill" : "pause.circle.fill")
+                              : "figure.walk")
+                            .font(.title2)
+                        Text(walkthroughActive ? (walkthroughPaused ? "Resume" : "Pause") : "Walk")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundStyle(walkthroughActive ? .ciAccent : .white)
+                    .shadow(radius: 2)
                 }
 
                 Button {
