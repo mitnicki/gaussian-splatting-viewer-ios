@@ -1,0 +1,30 @@
+# App Store Screenshots — generates screenshots via fastlane snapshot on macOS runner
+# Trigger manually when App Store screenshots are needed.
+name: App Store Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      languages:
+        description: "Languages (en-US,de-DE)"
+        required: false
+        default: "en-US,de-DE"
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen + Fastlane
+        run: |
+          brew install xcodegen
+          gem install fastlane --no-document
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Generate screenshots
+        run: fastlane screenshots
+        env:
+          LANGUAGES: ${{ github.event.inputs.languages }}

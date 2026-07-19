@@ -1,0 +1,22 @@
+# Snapfile — fastlane snapshot configuration for App Store screenshots
+# ponytail: minimal config, two device sizes required by App Store
+
+devices([
+  "iPhone 15 Pro Max",  # 6.7"
+  "iPhone 11 Pro Max"   # 6.5"
+])
+
+languages([
+  "en-US",
+  "de-DE"
+])
+
+scheme("GaussianSplattingViewer")
+
+# Output directory
+output_directory("./fastlane/screenshots")
+
+clear_previous_screenshots(true)
+
+# Override languages from environment if provided
+ENV["LANGUAGES"]&.split(",")&.each { |l| languages([l]) }
