@@ -1,12 +1,13 @@
-# App Store Screenshots — generates screenshots via fastlane snapshot on macOS runner
+# App Store Screenshots — generates via xcrun simctl on macOS runner.
 # Trigger manually when App Store screenshots are needed.
+# Produces 6.7" screenshots (required by App Store Connect).
 name: App Store Screenshots
 
 on:
   workflow_dispatch:
     inputs:
       languages:
-        description: "Languages (en-US,de-DE)"
+        description: "Languages (en-US,de-DE) — affects simulator UI language"
         required: false
         default: "en-US,de-DE"
 
@@ -16,15 +17,75 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install XcodeGen + Fastlane
-        run: |
-          brew install xcodegen
-          gem install fastlane --no-document
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Generate screenshots
-        run: fastlane screenshots
-        env:
-          LANGUAGES: ${{ github.event.inputs.languages }}
+      - name: Boot iPhone 15 Pro Max simulator
+        run: |
+          xcrun simctl list devices available | grep "iPhone 15 Pro Max" || true
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 Pro Max" | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID"
+
+      - name: Build for simulator
+        run: |
+          xcodebuild build \
+            -project GaussianSplattingViewer.xcodeproj \
+            -scheme GaussianSplattingViewer \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro Max" \
+            -derivedDataPath ./build \
+            CODE_SIGNING_ALLOWED=NO \
+            -skipPackagePluginValidation \
+            -skipMacroValidation 2>&1
+
+      - name: Find .app
+        run: |
+          APP_PATH=$(find ./build/Build/Products -name "GaussianSplattingViewer.app" -type d | head -1)
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+
+      - name: Install and launch app
+        run: |
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          # Launch with -autoDemo to auto-load the demo scene
+          xcrun simctl launch "$DEVICE_ID" cloud.dkroeker.GaussianSplattingViewer -autoDemo
+
+      - name: Capture home screen screenshot
+        run: |
+          mkdir -p screenshots/en-US screenshots/de-DE
+          # Wait for app to render
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/en-US/01_home.png
+
+      - name: Capture demo scene screenshot
+        run: |
+          # Demo scene auto-loads via -autoDemo; wait for Metal rendering
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/en-US/02_demo_scene.png
+
+      - name: Capture German screenshots
+        run: |
+          # Change simulator language to de-DE
+          xcrun simctl shutdown "$DEVICE_ID" || true
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID"
+          # Re-install and launch
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch "$DEVICE_ID" cloud.dkroeker.GaussianSplattingViewer -autoDemo
+          sleep 3
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/de-DE/01_home.png
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot screenshots/de-DE/02_demo_scene.png
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: screenshots/
+
+      - name: Shutdown simulator
+        if: always()
+        run: xcrun simctl shutdown "$DEVICE_ID" || true

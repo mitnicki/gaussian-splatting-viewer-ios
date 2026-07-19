@@ -11,6 +11,11 @@ struct ContentView: View {
     @State private var isPickingFile = false
     @State private var importedFile: SplatSource?
 
+    // ponytail: launch arg for automated screenshots — simctl launches with -autoDemo
+    private static var autoDemo: Bool {
+        CommandLine.arguments.contains("-autoDemo")
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
@@ -94,6 +99,14 @@ struct ContentView: View {
         .onOpenURL { url in
             // Handle "Open In" from other apps (Files, Mail, AirDrop, etc.)
             importFile(url)
+        }
+        .onAppear {
+            // Auto-load demo scene for screenshot automation
+            if Self.autoDemo, importedFile == nil {
+                if let demoURL = Bundle.main.url(forResource: "demo_scene", withExtension: "splat", subdirectory: "DemoData") {
+                    importedFile = SplatSource(url: demoURL)
+                }
+            }
         }
     }
 
