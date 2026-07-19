@@ -21,6 +21,16 @@ struct SettingsView: View {
                     .font(.ciCaption)
                     .foregroundStyle(.ciTextSecondary)
             }
+
+            // ponytail: OFL-1.1 requires attribution when fonts are bundled.
+            Section("Licenses") {
+                Text("This app is built on MetalSplatter (MIT) and Niantic spz (MIT).")
+                    .font(.ciCaption)
+                    .foregroundStyle(.ciTextSecondary)
+                Text("Fonts: Inter (OFL-1.1, rsms), JetBrains Mono (OFL-1.1, JetBrains).")
+                    .font(.ciCaption)
+                    .foregroundStyle(.ciTextSecondary)
+            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
