@@ -1,1 +1,1 @@
-Die einzige iOS-App, die große Gaussian-Splatting-Dateien (.ply/.splat/.spz) zuverlässig und in voller Auflösung mit Metal rendert — dort wo Safari und jede andere App scheitert.
+Die einzige iOS-App, die große Gaussian-Splatting-Dateien (.ply/.splat/.spz) zuverlässig in voller Auflösung mit Metal rendert — wo Safari und andere Apps scheitern
