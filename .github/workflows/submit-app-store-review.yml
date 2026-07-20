@@ -14,10 +14,12 @@ on:
         type: string
         default: "3"
   push:
+    branches:
+      - "!*"
     tags:
       - "v*"
 
-# ponytail: tag trigger lets us submit without workflow_dispatch PAT scope
+# ponytail: branches: ["!*"] prevents all branch pushes, only tags trigger
 
 jobs:
   submit-review:
@@ -38,6 +40,13 @@ jobs:
           pip install cryptography
           gem install fastlane --no-document
 
+      - name: Check ASC status
+        run: python3 scripts/check_asc_status.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
       - name: Push metadata to App Store Connect
         run: fastlane deliver_metadata
         env:
@@ -51,5 +60,5 @@ jobs:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-          APP_VERSION: ${{ inputs.app_version || github.ref_name | replace('v', '') }}
-          PRICE_TIER: ${{ inputs.price_tier || '3' }}
+          APP_VERSION: ${{ github.event.inputs.app_version || github.ref_name }}
+          PRICE_TIER: ${{ github.event.inputs.price_tier || '3' }}
