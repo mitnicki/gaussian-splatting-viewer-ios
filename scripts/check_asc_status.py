@@ -75,11 +75,18 @@ if status == 200:
                 print(f"    Locale: {la.get('locale')} — desc={'YES' if la.get('description') else 'NO'} — promo={'YES' if la.get('promotionalText') else 'NO'} — keywords={'YES' if la.get('keywords') else 'NO'}")
         else:
             print(f"    Localizations: status={status2} {json.dumps(loc_data)[:200]}")
-        # Check screenshots
-        status3, ss_data = asc(conn, jwt, "GET", f"/v1/appStoreVersionLocalizations/{vid}/appScreenshotSets?limit=10") if loc_data.get("data") else (200, {})
-        if status3 == 200 and ss_data.get("data"):
-            for ss in ss_data["data"]:
-                print(f"    Screenshot set: {ss.get('attributes',{}).get('screenshotDisplayType')} — {len(ss.get('relationships',{}).get('appScreenshots',{}).get('data',[]))} screenshots")
+        # Check screenshots per localization
+        if loc_data.get("data"):
+            for loc in loc_data["data"]:
+                loc_id = loc["id"]
+                loc_locale = loc.get("attributes", {}).get("locale", "")
+                status3, ss_data = asc(conn, jwt, "GET", f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets?limit=10")
+                if status3 == 200 and ss_data.get("data"):
+                    for ss in ss_data["data"]:
+                        ss_count = len(ss.get("relationships", {}).get("appScreenshots", {}).get("data", []))
+                        print(f"    Screenshots [{loc_locale}]: {ss.get('attributes',{}).get('screenshotDisplayType')} — {ss_count} screenshots")
+                else:
+                    print(f"    Screenshots [{loc_locale}]: none")
 else:
     print(f"  ERROR: status={status} {json.dumps(data)[:300]}")
 

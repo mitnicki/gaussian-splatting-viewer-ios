@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Submit build for App Store review — creates version, uploads metadata, links build, submits.
+"""Submit build for App Store review — creates version, uploads metadata + screenshots, links build, submits.
 
 Handles the full flow via ASC API:
 1. Get app
 2. Get latest valid build
-3. Create or get App Store version
+3. Find or create App Store version (handles version string mismatch)
 4. Create or update localizations (de-DE, en-US) with metadata from fastlane/metadata/
-5. Link build to version
-6. Submit for review
+5. Upload screenshots to ASC
+6. Link build to version
+7. Submit for review
 """
-import json, time, sys, os, base64, pathlib
-import http.client, ssl
+import json, time, sys, os, base64, pathlib, struct, zlib
+import http.client, ssl, urllib.request
 
 def make_jwt(key_id, issuer_id, key_content):
     from cryptography.hazmat.primitives import serialization, hashes
@@ -18,7 +19,7 @@ def make_jwt(key_id, issuer_id, key_content):
     from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
     key_pem = key_content
     if "BEGIN PRIVATE KEY" not in key_pem:
-        key_pem = "-----BEGIN PRIVATE KEY-----\n" + key_pem + "\n-----END PRIVATE KEY-----\n"
+        key_pem = "[REDACTED PRIVATE KEY]\n"
     private_key = serialization.load_pem_private_key(key_pem.encode(), password=None)
     header = {"alg": "ES256", "kid": key_id, "typ": "JWT"}
     now = int(time.time())
@@ -44,11 +45,132 @@ def asc(conn, jwt, method, path, body=None):
     return resp.status, data
 
 def read_meta(locale, field):
-    """Read a metadata field from fastlane/metadata/{locale}/{field}.txt"""
     p = pathlib.Path("fastlane/metadata") / locale / f"{field}.txt"
     if p.exists():
         return p.read_text().strip()
     return ""
+
+def png_dimensions(path):
+    with open(path, "rb") as f:
+        data = f.read(24)
+        if data[:8] != b'\x89PNG\r\n\x1a\n':
+            return None, None
+        w, h = struct.unpack('>II', data[16:24])
+        return w, h
+
+def upload_screenshot(conn, jwt, localization_id, screenshot_path, display_type="APP_IPHONE_67"):
+    """Upload a single screenshot to ASC. Returns True on success."""
+    # Check if screenshot set already exists for this locale + display type
+    status, data = asc(conn, jwt, "GET",
+        f"/v1/appStoreVersionLocalizations/{localization_id}/appScreenshotSets?limit=10")
+    existing_set_id = None
+    if status == 200:
+        for ss in data.get("data", []):
+            if ss.get("attributes", {}).get("screenshotDisplayType") == display_type:
+                existing_set_id = ss["id"]
+                break
+
+    # Create screenshot set if needed
+    if not existing_set_id:
+        status, data = asc(conn, jwt, "POST", "/v1/appScreenshotSets", {
+            "data": {
+                "type": "appScreenshotSets",
+                "attributes": {"screenshotDisplayType": display_type},
+                "relationships": {
+                    "appStoreVersionLocalization": {
+                        "data": {"type": "appStoreVersionLocalizations", "id": localization_id}
+                    }
+                }
+            }
+        })
+        if status not in (200, 201):
+            print(f"    ERROR creating screenshot set: {status} {json.dumps(data)[:300]}")
+            return False
+        existing_set_id = data["data"]["id"]
+        print(f"    Created screenshot set: {existing_set_id}")
+    else:
+        print(f"    Using existing screenshot set: {existing_set_id}")
+
+    # Check if screenshots already exist in the set
+    status, data = asc(conn, jwt, "GET",
+        f"/v1/appScreenshotSets/{existing_set_id}/appScreenshots?limit=10")
+    if status == 200 and data.get("data"):
+        print(f"    Screenshots already exist ({len(data['data'])}) — skipping upload")
+        return True
+
+    # Create appScreenshot — this returns uploadOperation with upload URL
+    file_size = os.path.getsize(screenshot_path)
+    status, data = asc(conn, jwt, "POST", "/v1/appScreenshots", {
+        "data": {
+            "type": "appScreenshots",
+            "attributes": {
+                "fileSize": file_size,
+                "fileName": os.path.basename(screenshot_path)
+            },
+            "relationships": {
+                "appScreenshotSet": {
+                    "data": {"type": "appScreenshotSets", "id": existing_set_id}
+                }
+            }
+        }
+    })
+    if status not in (200, 201):
+        print(f"    ERROR creating screenshot: {status} {json.dumps(data)[:300]}")
+        return False
+
+    screenshot_id = data["data"]["id"]
+    upload_ops = data["data"].get("relationships", {}).get("appScreenshotUploadOperations", {}).get("data", [])
+    if not upload_ops:
+        # Check if upload operations are in included
+        upload_ops = data.get("included", [])
+    
+    if not upload_ops:
+        print(f"    ERROR: No upload operations returned. Response: {json.dumps(data)[:500]}")
+        return False
+
+    # Upload each chunk (usually single chunk for screenshots)
+    for op in upload_ops:
+        op_id = op.get("id", "")
+        # Find the matching included resource
+        upload_url = None
+        for inc in data.get("included", []):
+            if inc.get("id") == op_id and inc.get("type") == "appScreenshotUploadOperations":
+                upload_url = inc.get("attributes", {}).get("uploadUrl", "")
+                break
+        
+        if not upload_url:
+            print(f"    ERROR: No upload URL found for operation {op_id}")
+            return False
+
+        # Upload the file data to the upload URL
+        with open(screenshot_path, "rb") as f:
+            file_data = f.read()
+
+        req = urllib.request.Request(upload_url, data=file_data, method="PUT")
+        req.add_header("Content-Type", "application/octet-stream")
+        try:
+            resp = urllib.request.urlopen(req)
+            if resp.status not in (200, 204):
+                print(f"    ERROR uploading image: HTTP {resp.status}")
+                return False
+        except Exception as e:
+            print(f"    ERROR uploading image: {e}")
+            return False
+
+    # Commit the upload
+    status, data = asc(conn, jwt, "PATCH", f"/v1/appScreenshots/{screenshot_id}", {
+        "data": {
+            "type": "appScreenshots",
+            "id": screenshot_id,
+            "attributes": {"uploaded": True}
+        }
+    })
+    if status not in (200, 201):
+        print(f"    ERROR committing screenshot: {status} {json.dumps(data)[:300]}")
+        return False
+
+    print(f"    Uploaded: {os.path.basename(screenshot_path)} ({file_size} bytes)")
+    return True
 
 key_id = os.environ.get("ASC_API_KEY_ID", "")
 issuer_id = os.environ.get("ASC_ISSUER_ID", "")
@@ -97,18 +219,24 @@ build_id = build["id"]
 build_version = build["attributes"]["version"]
 print(f"Latest valid build: {build_id} (version {build_version})")
 
-# 3. Get or create App Store version
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions?filter[versionString]={app_version}")
+# 3. Find or create App Store version
+# First, look for ANY version in PREPARE_FOR_SUBMISSION state (handles version string mismatch)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
 app_store_version_id = None
-if status == 200 and data.get("data"):
-    existing = data["data"][0]
-    app_store_version_id = existing["id"]
-    version_state = existing["attributes"].get("appStoreState", "")
-    print(f"App Store version {app_version} exists: {app_store_version_id} (state={version_state})")
-    if version_state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
-        print("Already submitted or live — nothing to do.")
-        sys.exit(0)
-else:
+if status == 200:
+    for v in data.get("data", []):
+        state = v["attributes"].get("appStoreState", "")
+        vstr = v["attributes"].get("versionString", "")
+        if state == "PREPARE_FOR_SUBMISSION":
+            app_store_version_id = v["id"]
+            app_version = vstr  # use the actual ASC version string
+            print(f"Found existing version {vstr} in PREPARE_FOR_SUBMISSION: {app_store_version_id}")
+            break
+        elif state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+            print(f"Version {vstr} already in state {state} — nothing to do.")
+            sys.exit(0)
+
+if not app_store_version_id:
     print(f"Creating App Store version {app_version}...")
     status, data = asc(conn, jwt, "POST", "/v1/appStoreVersions", {
         "data": {
@@ -128,16 +256,6 @@ else:
     if status == 201:
         app_store_version_id = data["data"]["id"]
         print(f"Created App Store version: {app_store_version_id}")
-    elif status == 409:
-        status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
-        for v in data.get("data", []):
-            if v["attributes"].get("versionString") == app_version:
-                app_store_version_id = v["id"]
-                break
-        if not app_store_version_id:
-            print(f"ERROR: Could not find existing version: {json.dumps(data)[:300]}")
-            sys.exit(1)
-        print(f"Using existing version: {app_store_version_id}")
     else:
         print(f"ERROR creating version (status={status}): {json.dumps(data)[:500]}")
         sys.exit(1)
@@ -145,47 +263,33 @@ else:
 # 4. Upload metadata (create or update localizations)
 print(f"\nUploading metadata for version {app_version}...")
 
-# Get existing localizations
 status, loc_data = asc(conn, jwt, "GET", f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionLocalizations?limit=20")
 existing_locales = {}
 if status == 200:
     for loc in loc_data.get("data", []):
         existing_locales[loc["attributes"]["locale"]] = loc["id"]
 
-# Metadata for each locale
 locales_meta = {
     "de-DE": {
         "description": read_meta("de-DE", "description"),
         "keywords": read_meta("de-DE", "keywords"),
         "promotional_text": read_meta("de-DE", "promotional_text"),
-        "name": read_meta("de-DE", "name"),
-        "subtitle": read_meta("de-DE", "subtitle"),
-        "support_url": read_meta("de-DE", "support_url"),
-        "marketing_url": read_meta("de-DE", "marketing_url"),
-        "privacy_url": read_meta("de-DE", "privacy_url"),
     },
     "en-US": {
         "description": read_meta("en-US", "description"),
         "keywords": read_meta("en-US", "keywords"),
         "promotional_text": read_meta("en-US", "promotional_text"),
-        "name": read_meta("en-US", "name"),
-        "subtitle": read_meta("en-US", "subtitle"),
-        "support_url": read_meta("en-US", "support_url"),
-        "marketing_url": read_meta("en-US", "marketing_url"),
-        "privacy_url": read_meta("en-US", "privacy_url"),
     }
 }
 
 for locale, meta in locales_meta.items():
-    # Map our field names to ASC API field names
     asc_attrs = {
         "description": meta["description"],
         "keywords": meta["keywords"],
         "promotionalText": meta["promotional_text"],
     }
-    
+
     if locale in existing_locales:
-        # Update existing localization
         loc_id = existing_locales[locale]
         print(f"  Updating {locale} ({loc_id})...")
         status, data = asc(conn, jwt, "PATCH", f"/v1/appStoreVersionLocalizations/{loc_id}", {
@@ -200,7 +304,6 @@ for locale, meta in locales_meta.items():
         else:
             print(f"    WARNING: status={status} {json.dumps(data)[:300]}")
     else:
-        # Create new localization
         print(f"  Creating {locale}...")
         status, data = asc(conn, jwt, "POST", "/v1/appStoreVersionLocalizations", {
             "data": {
@@ -217,11 +320,30 @@ for locale, meta in locales_meta.items():
             }
         })
         if status == 201:
-            print(f"    OK — created ({data['data']['id']})")
+            loc_id = data["data"]["id"]
+            existing_locales[locale] = loc_id
+            print(f"    OK — created ({loc_id})")
         else:
             print(f"    WARNING: status={status} {json.dumps(data)[:300]}")
 
-# 5. Link build to App Store version
+# 5. Upload screenshots
+print(f"\nUploading screenshots...")
+for locale in ["de-DE", "en-US"]:
+    loc_id = existing_locales.get(locale)
+    if not loc_id:
+        print(f"  Skipping {locale} — no localization ID")
+        continue
+    print(f"  {locale}:")
+    ss_dir = pathlib.Path(f"fastlane/metadata/{locale}/screenshots")
+    if not ss_dir.exists():
+        print(f"    No screenshots directory found")
+        continue
+    for ss_file in sorted(ss_dir.glob("*.png")):
+        w, h = png_dimensions(str(ss_file))
+        print(f"    {ss_file.name}: {w}x{h}")
+        upload_screenshot(conn, jwt, loc_id, str(ss_file))
+
+# 6. Link build to App Store version
 print(f"\nLinking build {build_id} to App Store version {app_store_version_id}...")
 status, data = asc(conn, jwt, "PATCH", f"/v1/appStoreVersions/{app_store_version_id}/relationships/build", {
     "data": {"type": "builds", "id": build_id}
@@ -231,7 +353,7 @@ if status in (200, 204):
 else:
     print(f"WARNING: Link build returned {status}: {json.dumps(data)[:300]}")
 
-# 6. Submit for review
+# 7. Submit for review
 print(f"\nSubmitting App Store version {app_version} for review...")
 time.sleep(5)
 
