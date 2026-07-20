@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Submit build for App Store review — creates App Store version, links build, submits.
+"""Submit build for App Store review — creates version, uploads metadata, links build, submits.
 
-Adapted from submit_beta_review.py. Uses the App Store versioning API (not beta).
-Requires: a VALID, processed TestFlight build exists for this app.
+Handles the full flow via ASC API:
+1. Get app
+2. Get latest valid build
+3. Create or get App Store version
+4. Create or update localizations (de-DE, en-US) with metadata from fastlane/metadata/
+5. Link build to version
+6. Submit for review
 """
-import json, time, sys, os, base64
+import json, time, sys, os, base64, pathlib
 import http.client, ssl
 
 def make_jwt(key_id, issuer_id, key_content):
@@ -13,7 +18,7 @@ def make_jwt(key_id, issuer_id, key_content):
     from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
     key_pem = key_content
     if "BEGIN PRIVATE KEY" not in key_pem:
-        key_pem = "-----BEGIN PRIVATE KEY-----\n" + key_content + "\n-----END PRIVATE KEY-----"
+        key_pem = "-----BEGIN PRIVATE KEY-----\n" + key_pem + "\n-----END PRIVATE KEY-----\n"
     private_key = serialization.load_pem_private_key(key_pem.encode(), password=None)
     header = {"alg": "ES256", "kid": key_id, "typ": "JWT"}
     now = int(time.time())
@@ -38,10 +43,18 @@ def asc(conn, jwt, method, path, body=None):
     data = json.loads(raw) if raw.strip() else {}
     return resp.status, data
 
+def read_meta(locale, field):
+    """Read a metadata field from fastlane/metadata/{locale}/{field}.txt"""
+    p = pathlib.Path("fastlane/metadata") / locale / f"{field}.txt"
+    if p.exists():
+        return p.read_text().strip()
+    return ""
+
 key_id = os.environ.get("ASC_API_KEY_ID", "")
 issuer_id = os.environ.get("ASC_ISSUER_ID", "")
 key_content = os.environ.get("ASC_API_KEY_CONTENT", "")
-app_version = os.environ.get("APP_VERSION", "1.0.0")
+app_version_raw = os.environ.get("APP_VERSION", "1.0.0")
+app_version = app_version_raw.lstrip("v")
 price_tier = int(os.environ.get("PRICE_TIER", "3"))
 
 if not all([key_id, issuer_id, key_content]):
@@ -76,7 +89,6 @@ for b in data.get("data", []):
 
 if not valid_builds:
     print("ERROR: No valid (processed, non-expired) builds found.")
-    print("Upload a build to TestFlight first, then run this script.")
     sys.exit(1)
 
 valid_builds.sort(key=lambda b: int(b["attributes"].get("version", "0")), reverse=True)
@@ -85,21 +97,19 @@ build_id = build["id"]
 build_version = build["attributes"]["version"]
 print(f"Latest valid build: {build_id} (version {build_version})")
 
-# 3. Check if App Store version already exists
+# 3. Get or create App Store version
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions?filter[versionString]={app_version}")
-existing_version = None
 app_store_version_id = None
 if status == 200 and data.get("data"):
-    existing_version = data["data"][0]
-    app_store_version_id = existing_version["id"]
-    version_state = existing_version["attributes"].get("appStoreState", "")
-    print(f"App Store version {app_version} already exists: {app_store_version_id} (state={version_state})")
+    existing = data["data"][0]
+    app_store_version_id = existing["id"]
+    version_state = existing["attributes"].get("appStoreState", "")
+    print(f"App Store version {app_version} exists: {app_store_version_id} (state={version_state})")
     if version_state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
         print("Already submitted or live — nothing to do.")
         sys.exit(0)
 else:
-    # 4. Create App Store version
-    print(f"\nCreating App Store version {app_version}...")
+    print(f"Creating App Store version {app_version}...")
     status, data = asc(conn, jwt, "POST", "/v1/appStoreVersions", {
         "data": {
             "type": "appStoreVersions",
@@ -119,7 +129,6 @@ else:
         app_store_version_id = data["data"]["id"]
         print(f"Created App Store version: {app_store_version_id}")
     elif status == 409:
-        print(f"Version {app_version} already exists (409), fetching...")
         status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
         for v in data.get("data", []):
             if v["attributes"].get("versionString") == app_version:
@@ -130,8 +139,87 @@ else:
             sys.exit(1)
         print(f"Using existing version: {app_store_version_id}")
     else:
-        print(f"ERROR creating version (status={status}): {json.dumps(data)[:300]}")
+        print(f"ERROR creating version (status={status}): {json.dumps(data)[:500]}")
         sys.exit(1)
+
+# 4. Upload metadata (create or update localizations)
+print(f"\nUploading metadata for version {app_version}...")
+
+# Get existing localizations
+status, loc_data = asc(conn, jwt, "GET", f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionLocalizations?limit=20")
+existing_locales = {}
+if status == 200:
+    for loc in loc_data.get("data", []):
+        existing_locales[loc["attributes"]["locale"]] = loc["id"]
+
+# Metadata for each locale
+locales_meta = {
+    "de-DE": {
+        "description": read_meta("de-DE", "description"),
+        "keywords": read_meta("de-DE", "keywords"),
+        "promotional_text": read_meta("de-DE", "promotional_text"),
+        "name": read_meta("de-DE", "name"),
+        "subtitle": read_meta("de-DE", "subtitle"),
+        "support_url": read_meta("de-DE", "support_url"),
+        "marketing_url": read_meta("de-DE", "marketing_url"),
+        "privacy_url": read_meta("de-DE", "privacy_url"),
+    },
+    "en-US": {
+        "description": read_meta("en-US", "description"),
+        "keywords": read_meta("en-US", "keywords"),
+        "promotional_text": read_meta("en-US", "promotional_text"),
+        "name": read_meta("en-US", "name"),
+        "subtitle": read_meta("en-US", "subtitle"),
+        "support_url": read_meta("en-US", "support_url"),
+        "marketing_url": read_meta("en-US", "marketing_url"),
+        "privacy_url": read_meta("en-US", "privacy_url"),
+    }
+}
+
+for locale, meta in locales_meta.items():
+    # Map our field names to ASC API field names
+    asc_attrs = {
+        "description": meta["description"],
+        "keywords": meta["keywords"],
+        "promotionalText": meta["promotional_text"],
+    }
+    
+    if locale in existing_locales:
+        # Update existing localization
+        loc_id = existing_locales[locale]
+        print(f"  Updating {locale} ({loc_id})...")
+        status, data = asc(conn, jwt, "PATCH", f"/v1/appStoreVersionLocalizations/{loc_id}", {
+            "data": {
+                "type": "appStoreVersionLocalizations",
+                "id": loc_id,
+                "attributes": asc_attrs
+            }
+        })
+        if status == 200:
+            print(f"    OK — updated")
+        else:
+            print(f"    WARNING: status={status} {json.dumps(data)[:300]}")
+    else:
+        # Create new localization
+        print(f"  Creating {locale}...")
+        status, data = asc(conn, jwt, "POST", "/v1/appStoreVersionLocalizations", {
+            "data": {
+                "type": "appStoreVersionLocalizations",
+                "attributes": {
+                    "locale": locale,
+                    **asc_attrs
+                },
+                "relationships": {
+                    "appStoreVersion": {
+                        "data": {"type": "appStoreVersions", "id": app_store_version_id}
+                    }
+                }
+            }
+        })
+        if status == 201:
+            print(f"    OK — created ({data['data']['id']})")
+        else:
+            print(f"    WARNING: status={status} {json.dumps(data)[:300]}")
 
 # 5. Link build to App Store version
 print(f"\nLinking build {build_id} to App Store version {app_store_version_id}...")
@@ -168,8 +256,9 @@ for attempt in range(3):
     elif status == 422:
         err_detail = ""
         if data.get("errors"):
-            err_detail = data["errors"][0].get("detail", "")
-        print(f"Attempt {attempt+1}: 422 — {err_detail}")
+            for e in data["errors"]:
+                err_detail += e.get("detail", "") + " "
+        print(f"Attempt {attempt+1}: 422 — {err_detail.strip()}")
         if attempt < 2:
             print("Waiting 15s...")
             time.sleep(15)
@@ -177,7 +266,7 @@ for attempt in range(3):
         print(f"Already submitted: {json.dumps(data)[:200]}")
         break
     else:
-        print(f"Attempt {attempt+1}: {status} {json.dumps(data)[:300]}")
+        print(f"Attempt {attempt+1}: {status} {json.dumps(data)[:500]}")
         if attempt < 2:
             time.sleep(10)
 

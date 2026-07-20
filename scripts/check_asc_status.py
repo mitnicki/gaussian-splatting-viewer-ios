@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check App Store Connect agreement and app status."""
+"""Check App Store Connect agreement, app, version, localization, and build status."""
 import json, time, sys, os, base64
 import http.client, ssl
 
@@ -53,57 +53,45 @@ status, data = asc(conn, jwt, "GET", f"/v1/apps?filter[bundleId]={bundle_id}")
 print(f"=== App (status={status}) ===")
 if status == 200 and data.get("data"):
     app = data["data"][0]
-    print(f"App ID: {app['id']}")
-    print(f"Name: {app['attributes'].get('name')}")
-    print(f"Bundle ID: {app['attributes'].get('bundleId')}")
-    print(f"Primary locale: {app['attributes'].get('primaryLocale')}")
     app_id = app["id"]
+    print(f"App ID: {app_id}, Name: {app['attributes'].get('name')}, Locale: {app['attributes'].get('primaryLocale')}")
 else:
     print(f"ERROR: {json.dumps(data)[:500]}")
     sys.exit(1)
 
-# 2. Check agreements/contracts
-print(f"\n=== Agreements ===")
-status, data = asc(conn, jwt, "GET", "/v1/contracts?limit=20")
-print(f"Contracts endpoint: status={status}")
-if status == 200:
-    for c in data.get("data", []):
-        attrs = c.get("attributes", {})
-        print(f"  Contract: {attrs.get('type', 'unknown')} — status={attrs.get('status', 'unknown')}")
-else:
-    print(f"  Response: {json.dumps(data)[:500]}")
-
-# 3. Check app Store versions
+# 2. Check App Store versions + localizations
 print(f"\n=== App Store Versions ===")
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
-print(f"Status: {status}")
 if status == 200:
     for v in data.get("data", []):
         attrs = v.get("attributes", {})
+        vid = v["id"]
         print(f"  Version {attrs.get('versionString')} — state={attrs.get('appStoreState')} — build={attrs.get('build')}")
+        # Check localizations for this version
+        status2, loc_data = asc(conn, jwt, "GET", f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations?limit=20")
+        if status2 == 200:
+            for loc in loc_data.get("data", []):
+                la = loc.get("attributes", {})
+                print(f"    Locale: {la.get('locale')} — desc={'YES' if la.get('description') else 'NO'} — promo={'YES' if la.get('promotionalText') else 'NO'} — keywords={'YES' if la.get('keywords') else 'NO'}")
+        else:
+            print(f"    Localizations: status={status2} {json.dumps(loc_data)[:200]}")
+        # Check screenshots
+        status3, ss_data = asc(conn, jwt, "GET", f"/v1/appStoreVersionLocalizations/{vid}/appScreenshotSets?limit=10") if loc_data.get("data") else (200, {})
+        if status3 == 200 and ss_data.get("data"):
+            for ss in ss_data["data"]:
+                print(f"    Screenshot set: {ss.get('attributes',{}).get('screenshotDisplayType')} — {len(ss.get('relationships',{}).get('appScreenshots',{}).get('data',[]))} screenshots")
 else:
-    print(f"  Response: {json.dumps(data)[:500]}")
+    print(f"  ERROR: status={status} {json.dumps(data)[:300]}")
 
-# 4. Check builds
+# 3. Check builds
 print(f"\n=== Builds ===")
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=5")
-print(f"Status: {status}")
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=10")
 if status == 200:
     for b in data.get("data", []):
         attrs = b.get("attributes", {})
-        print(f"  Build {attrs.get('version')} — processing={attrs.get('processingState')} — expired={attrs.get('expired')}")
+        print(f"  Build {attrs.get('version')} — processing={attrs.get('processingState')} — expired={attrs.get('expired')} — uploaded={attrs.get('uploadedDate','')[:10]}")
 else:
-    print(f"  Response: {json.dumps(data)[:500]}")
-
-# 5. Check app availability
-print(f"\n=== App Availability ===")
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appAvailability")
-print(f"Status: {status}")
-if status == 200:
-    attrs = data.get("data", {}).get("attributes", {})
-    print(f"  Available: {attrs}")
-else:
-    print(f"  Response: {json.dumps(data)[:500]}")
+    print(f"  ERROR: status={status}")
 
 conn.close()
 print("\nDone.")

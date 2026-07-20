@@ -31,24 +31,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-
       - name: Install dependencies
-        run: |
-          pip install cryptography
-          gem install fastlane --no-document
+        run: pip install cryptography
 
       - name: Check ASC status
         run: python3 scripts/check_asc_status.py
-        env:
-          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-
-      - name: Push metadata to App Store Connect
-        run: fastlane deliver_metadata
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
