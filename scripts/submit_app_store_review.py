@@ -409,13 +409,17 @@ for attempt in range(3):
             for e in data["errors"]:
                 err_detail += e.get("detail", "") + " "
         print(f"Attempt {attempt+1}: 403 — {err_detail.strip()}")
-        if "does not allow" in err_detail and "DELETE" in err_detail:
-            print("\nA submission already exists for this version (ASC API says only DELETE is allowed).")
-            print("The app is likely already submitted for review.")
-            print("Check App Store Connect to confirm the review status.")
-        elif "does not allow" in err_detail:
-            print("\nThe API key may lack 'Submit for Review' permission.")
-            print("Required: App Store Connect API key with Admin role.")
+        if "does not allow" in err_detail and "CREATE" in err_detail:
+            # ponytail: GET /appStoreVersionSubmission returned 404 (no submission),
+            # but POST returns 403 "does not allow CREATE". This is a key permissions
+            # issue — the API key has App Manager role, not Admin.
+            print("\nDIAGNOSIS: API key lacks 'Submit for Review' permission.")
+            print("The ASC API key role is likely 'App Manager' — it can manage metadata,")
+            print("screenshots, and builds, but CANNOT create submissions for review.")
+            print("\nFIX: In App Store Connect → Users and Access → Keys:")
+            print("  1. Edit the API key role to 'Admin', OR")
+            print("  2. Manually click 'Add for Review' in App Store Connect (everything is ready).")
+            sys.exit(1)
         if attempt < 2:
             time.sleep(10)
     elif status == 422:
