@@ -355,7 +355,7 @@ print(f"\nSubmitting App Store version {app_version} for review...")
 time.sleep(5)
 
 for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", f"/v1/appStoreVersions/{app_store_version_id}/submission", {
+    status, data = asc(conn, jwt, "POST", "/v1/appStoreVersionSubmissions", {
         "data": {
             "type": "appStoreVersionSubmissions",
             "relationships": {
