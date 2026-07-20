@@ -350,7 +350,38 @@ if status in (200, 204):
 else:
     print(f"WARNING: Link build returned {status}: {json.dumps(data)[:300]}")
 
-# 7. Submit for review
+# 7. Check for existing submission before creating a new one
+print(f"\nChecking for existing submission on version {app_version}...")
+status, data = asc(conn, jwt, "GET",
+    f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionSubmission")
+
+if status == 200 and data.get("data"):
+    sub = data["data"]
+    sub_state = sub.get("attributes", {}).get("state", "UNKNOWN")
+    print(f"Submission already exists: {sub['id']} state={sub_state}")
+    print(f"App Store version {app_version} (build {build_version}) is already submitted for review.")
+    conn.close()
+    sys.exit(0)
+elif status == 404:
+    print("No existing submission found — proceeding to create.")
+elif status == 403:
+    # ponytail: 403 on GET submission means the API key can't read submissions,
+    # but the version state check above already told us if it's submitted
+    print(f"Cannot query submission (403) — checking version state instead...")
+    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
+    if status == 200:
+        for v in data.get("data", []):
+            if v["id"] == app_store_version_id:
+                state = v["attributes"].get("appStoreState", "")
+                if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+                    print(f"Version state is {state} — already submitted for review.")
+                    conn.close()
+                    sys.exit(0)
+                break
+else:
+    print(f"Submission check returned {status} — proceeding to create anyway.")
+
+# 8. Submit for review
 print(f"\nSubmitting App Store version {app_version} for review...")
 time.sleep(5)
 
@@ -372,6 +403,21 @@ for attempt in range(3):
         print(f"App Store version {app_version} (build {build_version}) submitted for review.")
         print("Review typically takes 24-48 hours.")
         break
+    elif status == 403:
+        err_detail = ""
+        if data.get("errors"):
+            for e in data["errors"]:
+                err_detail += e.get("detail", "") + " "
+        print(f"Attempt {attempt+1}: 403 — {err_detail.strip()}")
+        if "does not allow" in err_detail and "DELETE" in err_detail:
+            print("\nA submission already exists for this version (ASC API says only DELETE is allowed).")
+            print("The app is likely already submitted for review.")
+            print("Check App Store Connect to confirm the review status.")
+        elif "does not allow" in err_detail:
+            print("\nThe API key may lack 'Submit for Review' permission.")
+            print("Required: App Store Connect API key with Admin role.")
+        if attempt < 2:
+            time.sleep(10)
     elif status == 422:
         err_detail = ""
         if data.get("errors"):

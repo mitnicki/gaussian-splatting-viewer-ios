@@ -67,6 +67,15 @@ if status == 200:
         attrs = v.get("attributes", {})
         vid = v["id"]
         print(f"  Version {attrs.get('versionString')} — state={attrs.get('appStoreState')} — build={attrs.get('build')}")
+        # Check for existing submission
+        sub_status, sub_data = asc(conn, jwt, "GET", f"/v1/appStoreVersions/{vid}/appStoreVersionSubmission")
+        if sub_status == 200 and sub_data.get("data"):
+            sub_state = sub_data["data"].get("attributes", {}).get("state", "UNKNOWN")
+            print(f"    Submission: EXISTS (state={sub_state})")
+        elif sub_status == 404:
+            print(f"    Submission: none")
+        else:
+            print(f"    Submission: check returned {sub_status}")
         # Check localizations for this version
         status2, loc_data = asc(conn, jwt, "GET", f"/v1/appStoreVersions/{vid}/appStoreVersionLocalizations?limit=20")
         if status2 == 200:
