@@ -91,12 +91,19 @@ def upload_screenshot(conn, jwt, localization_id, screenshot_path, display_type=
     else:
         print(f"    Using existing screenshot set: {existing_set_id}")
 
-    # Check if screenshots already exist in the set
+    # Check if screenshots already exist in the set AND have valid image assets
     status, data = asc(conn, jwt, "GET",
         f"/v1/appScreenshotSets/{existing_set_id}/appScreenshots?limit=10")
     if status == 200 and data.get("data"):
-        print(f"    Screenshots already exist ({len(data['data'])}) — skipping upload")
-        return True
+        valid_count = 0
+        for ss in data["data"]:
+            if ss.get("attributes", {}).get("imageAsset"):
+                valid_count += 1
+        if valid_count > 0:
+            print(f"    Screenshots already exist ({valid_count} valid) — skipping upload")
+            return True
+        else:
+            print(f"    Screenshot entries exist but no valid images — re-uploading")
 
     # Create appScreenshot — this returns uploadOperation with upload URL
     file_size = os.path.getsize(screenshot_path)
@@ -119,34 +126,24 @@ def upload_screenshot(conn, jwt, localization_id, screenshot_path, display_type=
         return False
 
     screenshot_id = data["data"]["id"]
-    upload_ops = data["data"].get("relationships", {}).get("appScreenshotUploadOperations", {}).get("data", [])
-    if not upload_ops:
-        # Check if upload operations are in included
-        upload_ops = data.get("included", [])
-    
+    # ASC API returns uploadOperations directly in attributes
+    upload_ops = data["data"].get("attributes", {}).get("uploadOperations", [])
+
     if not upload_ops:
         print(f"    ERROR: No upload operations returned. Response: {json.dumps(data)[:500]}")
         return False
 
     # Upload each chunk (usually single chunk for screenshots)
+    with open(screenshot_path, "rb") as f:
+        file_data = f.read()
+
     for op in upload_ops:
-        op_id = op.get("id", "")
-        # Find the matching included resource
-        upload_url = None
-        for inc in data.get("included", []):
-            if inc.get("id") == op_id and inc.get("type") == "appScreenshotUploadOperations":
-                upload_url = inc.get("attributes", {}).get("uploadUrl", "")
-                break
-        
+        upload_url = op.get("url", "")
         if not upload_url:
-            print(f"    ERROR: No upload URL found for operation {op_id}")
+            print(f"    ERROR: No upload URL in operation: {json.dumps(op)[:200]}")
             return False
 
-        # Upload the file data to the upload URL
-        with open(screenshot_path, "rb") as f:
-            file_data = f.read()
-
-        req = urllib.request.Request(upload_url, data=file_data, method="PUT")
+        req = urllib.request.Request(upload_url, data=file_data, method=op.get("method", "PUT"))
         req.add_header("Content-Type", "application/octet-stream")
         try:
             resp = urllib.request.urlopen(req)
@@ -358,9 +355,9 @@ print(f"\nSubmitting App Store version {app_version} for review...")
 time.sleep(5)
 
 for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", "/v1/submissions", {
+    status, data = asc(conn, jwt, "POST", f"/v1/appStoreVersions/{app_store_version_id}/submission", {
         "data": {
-            "type": "submissions",
+            "type": "appStoreVersionSubmissions",
             "relationships": {
                 "appStoreVersion": {
                     "data": {"type": "appStoreVersions", "id": app_store_version_id}
