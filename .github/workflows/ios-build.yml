@@ -19,10 +19,15 @@ on:
       - 'fastlane/**'
       - 'scripts/**'
       - '.github/workflows/ios-build.yml'
+      - '.github/workflows/app-store-release.yml'
   workflow_dispatch:
     inputs:
       testflight:
         description: "Upload to TestFlight?"
+        type: boolean
+        default: false
+      configure_app_store:
+        description: "Configure App Store metadata + screenshots?"
         type: boolean
         default: false
 
@@ -128,6 +133,25 @@ jobs:
         run: pip install cryptography
       - name: Move build to internal group
         run: python3 scripts/move_builds_to_internal.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
+  configure-app-store:
+    name: Configure App Store Metadata
+    runs-on: ubuntu-latest
+    needs: build-simulator
+    if: ${{ github.event.inputs.configure_app_store == 'true' || github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install cryptography pillow
+      - name: Configure App Store metadata and upload screenshots
+        run: python3 scripts/configure_app_store.py
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
