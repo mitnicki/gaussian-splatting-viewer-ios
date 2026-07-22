@@ -445,14 +445,22 @@ else:
 
 time.sleep(3)
 
-# Step 3: Set submitted=true to send to review
-print(f"Step 3 — Setting submitted=true on submission {review_sub_id}...")
+# Step 3: Set submitted=true + attach appStoreVersionForReview relationship
+# ponytail: ASC API requires appStoreVersionForReview relationship on the PATCH,
+# not just via reviewSubmissionItems. Error without it: "appStoreVersions must be
+# included in this review submission" (409 ENTITY_ERROR.RELATIONSHIP.REQUIRED).
+print(f"Step 3 — Setting submitted=true + appStoreVersionForReview on submission {review_sub_id}...")
 status, data = asc(conn, jwt, "PATCH", f"/v1/reviewSubmissions/{review_sub_id}", {
     "data": {
         "type": "reviewSubmissions",
         "id": review_sub_id,
         "attributes": {
             "submitted": True
+        },
+        "relationships": {
+            "appStoreVersionForReview": {
+                "data": {"type": "appStoreVersions", "id": app_store_version_id}
+            }
         }
     }
 })
