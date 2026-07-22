@@ -472,7 +472,7 @@ status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
 if status in (200, 201):
     print(f"  OK — version linked to submission")
 else:
-    print(f"  WARN — reviewSubmissionItems returned {status}: {json.dumps(data)[:300]}")
+    print(f"  WARN — reviewSubmissionItems returned {status}: {json.dumps(data)[:2000]}")
     # Continue anyway — the version might already be linked
 
 time.sleep(3)
