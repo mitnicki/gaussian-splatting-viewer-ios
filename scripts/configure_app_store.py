@@ -205,27 +205,22 @@ if status == 200 and data.get("data"):
         data = {}  # Clear so we enter the else branch
 if not (status == 200 and data.get("data")):
     # Look up price points via v2 endpoint with app filter
-    status, data = asc(conn, jwt, "GET", f"/v2/appPricePoints?filter[app]={app_id}&filter[territory]=DEU&limit=200")
+    v2_status, v2_data = asc(conn, jwt, "GET", f"/v2/appPricePoints?filter[app]={app_id}&filter[territory]=DEU&limit=200")
     tier_id = None
-    if status == 200:
-        for pt in data.get("data", []):
+    if v2_status == 200:
+        for pt in v2_data.get("data", []):
             attrs = pt.get("attributes", {})
-            # v2 returns customerPrice object with value
             cp = attrs.get("customerPrice", {})
-            if isinstance(cp, dict):
-                amount = str(cp.get("value", ""))
-            else:
-                amount = str(cp)
-            # Tier 3 = 2.99 EUR in DEU
+            amount = str(cp.get("value", "")) if isinstance(cp, dict) else str(cp)
             if amount == "2.99":
                 tier_id = pt["id"]
                 print(f"  Found price point for 2.99 EUR (tier {price_tier}): {tier_id}")
                 break
     if not tier_id:
         # Fallback: try v1 app-nested endpoint
-        status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
-        if status == 200:
-            for pt in data.get("data", []):
+        v1_status, v1_data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
+        if v1_status == 200:
+            for pt in v1_data.get("data", []):
                 attrs = pt.get("attributes", {})
                 if str(attrs.get("priceTier", "")) == str(price_tier):
                     tier_id = pt["id"]
@@ -237,19 +232,17 @@ if not (status == 200 and data.get("data")):
                     print(f"  Found price point by price 2.99 EUR: {tier_id}")
                     break
     if not tier_id:
-        print(f"  WARN: Could not find price point for tier {price_tier} (status={status})")
-        if data.get("errors"):
-            print(f"  API errors: {json.dumps(data['errors'])[:300]}")
-        # Print price points near 2.99 for debugging
-        if data.get("data"):
-            for pt in data["data"]:
-                attrs = pt.get("attributes", {})
-                cp = str(attrs.get("customerPrice", attrs.get("price", "")))
-                if "2.99" in cp:
-                    print(f"    MATCH: {pt['id']} attrs={json.dumps(attrs)[:200]}")
-            # Also print first 3 if no match
-            for pt in data["data"][:3]:
-                print(f"    Sample: {pt['id']} attrs={json.dumps(pt.get('attributes',{}))[:200]}")
+        print(f"  WARN: Could not find price point for tier {price_tier}")
+        # Debug: search both v2 and v1 data for 2.99
+        for src, d in [("v2", v2_data), ("v1", v1_data)]:
+            if d.get("data"):
+                for pt in d["data"]:
+                    attrs = pt.get("attributes", {})
+                    cp = str(attrs.get("customerPrice", attrs.get("price", "")))
+                    if "2.99" in cp:
+                        print(f"    MATCH [{src}]: {pt['id']} attrs={json.dumps(attrs)[:200]}")
+                for pt in d["data"][:3]:
+                    print(f"    Sample [{src}]: {pt['id']} attrs={json.dumps(pt.get('attributes',{}))[:200]}")
         errors.append(f"Price tier {price_tier}: could not find price point")
     else:
         try_post(conn, jwt, "/v1/appPriceSchedules", {
