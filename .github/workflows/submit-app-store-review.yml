@@ -41,7 +41,15 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
-      - name: Submit App Store review
+      - name: Configure App Store metadata (content rights, categories, copyright, price, review contact)
+        run: python3 scripts/configure_app_store.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+          PRICE_TIER: ${{ github.event.inputs.price_tier || '3' }}
+
+      - name: Submit App Store review (metadata, screenshots, build, privacy, submit)
         run: python3 scripts/submit_app_store_review.py
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
