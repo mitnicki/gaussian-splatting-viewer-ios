@@ -436,7 +436,7 @@ for attempt in range(3):
         review_sub_id = data["data"]["id"]
         print(f"Step 1 OK — review submission created: {review_sub_id}")
         break
-    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
+    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:2000]}")
     if attempt < 2:
         time.sleep(5)
 
