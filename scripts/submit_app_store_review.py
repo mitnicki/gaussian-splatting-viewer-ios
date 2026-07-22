@@ -411,24 +411,40 @@ if status == 200:
             print(f"Review submission {rs['id']} already in state {rs_state} — app is submitted!")
             conn.close()
             sys.exit(0)
-        # Delete stale submissions that haven't been submitted yet
-        if rs_state in ("PREPARE_FOR_SUBMISSION", "OPEN", ""):
+        # Delete ALL stale submissions — anything not actively in review
+        if rs_state not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
             print(f"  Deleting stale review submission: {rs['id']} (state={rs_state})")
             asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
 
 # Step 1: Create review submission with app relationship only
-status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
-    "data": {
-        "type": "reviewSubmissions",
-        "relationships": {
-            "app": {
-                "data": {"type": "apps", "id": app_id}
+# Retry after cleanup — ASC needs a moment to process deletions
+time.sleep(3)
+for attempt in range(3):
+    status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
+        "data": {
+            "type": "reviewSubmissions",
+            "relationships": {
+                "app": {
+                    "data": {"type": "apps", "id": app_id}
+                }
             }
         }
-    }
-})
+    })
+    if status in (200, 201):
+        break
+    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
+    if attempt < 2:
+        # Re-cleanup stale submissions and retry
+        status_c, data_c = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=10")
+        if status_c == 200:
+            for rs in data_c.get("data", []):
+                rs_state = rs.get("attributes", {}).get("state", "")
+                if rs_state not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+                    print(f"  Re-cleaning stale submission: {rs['id']} (state={rs_state})")
+                    asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
+        time.sleep(5)
 if status not in (200, 201):
-    print(f"ERROR creating review submission (status={status}): {json.dumps(data)[:500]}")
+    print(f"ERROR creating review submission after 3 attempts (status={status}): {json.dumps(data)[:500]}")
     conn.close()
     sys.exit(1)
 review_sub_id = data["data"]["id"]
