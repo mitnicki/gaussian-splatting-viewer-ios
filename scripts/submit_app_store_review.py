@@ -409,19 +409,39 @@ for attempt in range(3):
             for e in data["errors"]:
                 err_detail += e.get("detail", "") + " "
         print(f"Attempt {attempt+1}: 403 — {err_detail.strip()}")
-        if "does not allow" in err_detail and "CREATE" in err_detail:
-            # ponytail: GET /appStoreVersionSubmission returned 404 (no submission),
-            # but POST returns 403 "does not allow CREATE". This is a key permissions
-            # issue — the API key has App Manager role, not Admin.
-            print("\nDIAGNOSIS: API key lacks 'Submit for Review' permission.")
-            print("The ASC API key role is likely 'App Manager' — it can manage metadata,")
-            print("screenshots, and builds, but CANNOT create submissions for review.")
-            print("\nFIX: In App Store Connect → Users and Access → Keys:")
-            print("  1. Edit the API key role to 'Admin', OR")
-            print("  2. Manually click 'Add for Review' in App Store Connect (everything is ready).")
-            sys.exit(1)
-        if attempt < 2:
-            time.sleep(10)
+        if "does not allow" in err_detail and "CREATE" in err_detail and "DELETE" in err_detail:
+            # ponytail: A stale submission exists — POST says only DELETE is allowed.
+            # The GET endpoint returned 404 (key can't read submissions) but POST
+            # confirms one exists. Try to find and delete it, then retry.
+            print("  Stale submission detected — attempting DELETE then retry...")
+            # Query the version's submission relationship to find the submission ID
+            status2, data2 = asc(conn, jwt, "GET",
+                f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionSubmission")
+            if status2 == 200 and data2.get("data"):
+                stale_id = data2["data"]["id"]
+                print(f"  Found stale submission: {stale_id} — deleting...")
+                status3, data3 = asc(conn, jwt, "DELETE", f"/v1/appStoreVersionSubmissions/{stale_id}")
+                if status3 in (200, 204):
+                    print("  Stale submission deleted. Retrying create...")
+                    time.sleep(5)
+                    continue
+                else:
+                    print(f"  DELETE failed: {status3} {json.dumps(data3)[:300]}")
+            else:
+                # Can't find the submission via GET — try deleting by version relationship
+                print(f"  GET returned {status2} — trying direct DELETE on version relationship...")
+                # ponytail: DELETE via the relationship endpoint
+                status3, data3 = asc(conn, jwt, "DELETE",
+                    f"/v1/appStoreVersions/{app_store_version_id}/relationships/appStoreVersionSubmission")
+                if status3 in (200, 204):
+                    print("  Stale submission deleted via relationship. Retrying...")
+                    time.sleep(5)
+                    continue
+                else:
+                    print(f"  Relationship DELETE failed: {status3} {json.dumps(data3)[:300]}")
+            # If we get here, DELETE didn't work — fall through to retry
+            if attempt < 2:
+                time.sleep(10)
     elif status == 422:
         err_detail = ""
         if data.get("errors"):
@@ -438,6 +458,14 @@ for attempt in range(3):
         print(f"Attempt {attempt+1}: {status} {json.dumps(data)[:500]}")
         if attempt < 2:
             time.sleep(10)
+
+# If we get here, all attempts failed
+if status != 201 and status != 409:
+    print("\nAll submission attempts failed.")
+    print("If the 403 persists after DELETE attempt, the API key may lack Create permission.")
+    print("Manual fallback: App Store Connect → select version 1.0 → click 'Add for Review'.")
+    conn.close()
+    sys.exit(1)
 
 conn.close()
 print("\nDone.")
