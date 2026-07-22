@@ -204,8 +204,8 @@ if status == 200 and data.get("data"):
         # Fall through to set pricing below
         data = {}  # Clear so we enter the else branch
 if not (status == 200 and data.get("data")):
-    # Look up price points via v2 endpoint
-    status, data = asc(conn, jwt, "GET", f"/v2/appPricePoints?filter[territory]=DEU&limit=200")
+    # Look up price points via v2 endpoint with app filter
+    status, data = asc(conn, jwt, "GET", f"/v2/appPricePoints?filter[app]={app_id}&filter[territory]=DEU&limit=200")
     tier_id = None
     if status == 200:
         for pt in data.get("data", []):
