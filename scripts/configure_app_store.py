@@ -240,8 +240,14 @@ if not (status == 200 and data.get("data")):
         print(f"  WARN: Could not find price point for tier {price_tier} (status={status})")
         if data.get("errors"):
             print(f"  API errors: {json.dumps(data['errors'])[:300]}")
-        # Print first few price points for debugging
+        # Print price points near 2.99 for debugging
         if data.get("data"):
+            for pt in data["data"]:
+                attrs = pt.get("attributes", {})
+                cp = str(attrs.get("customerPrice", attrs.get("price", "")))
+                if "2.99" in cp:
+                    print(f"    MATCH: {pt['id']} attrs={json.dumps(attrs)[:200]}")
+            # Also print first 3 if no match
             for pt in data["data"][:3]:
                 print(f"    Sample: {pt['id']} attrs={json.dumps(pt.get('attributes',{}))[:200]}")
         errors.append(f"Price tier {price_tier}: could not find price point")
