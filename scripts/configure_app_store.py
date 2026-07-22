@@ -411,108 +411,150 @@ def main():
             print(msg2)
             errors.append("App Privacy: " + msg + " / " + msg2)
 
-    # --- 6. Upload screenshots ---
+    # --- 6. Upload screenshots via localizations ---
     print("\n=== 6. Screenshots Upload ===")
 
-    # Get the App Store version (WAITING_FOR_REVIEW or PREPARE_FOR_SUBMISSION)
-    status, data = client.request("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[appStoreState]=PREPARE_FOR_SUBMISSION,READY_FOR_SALE")
+    import urllib.request
+    import struct as struct_mod
+    import pathlib
+
+    def png_dimensions(path):
+        with open(path, "rb") as f:
+            data = f.read(24)
+            if data[:8] != b'\x89PNG\r\n\x1a\n':
+                return None, None
+            w, h = struct_mod.unpack('>II', data[16:24])
+            return w, h
+
+    # Get the App Store version
+    status, data = client.request("GET", f"/v1/apps/{app_id}/appStoreVersions")
     version_id = None
     if status == 200 and data.get("data"):
         for v in data["data"]:
-            version_id = v["id"]
-            version_string = v["attributes"].get("versionString", "?")
-            print(f"  App Store Version: {version_string} (id={version_id})")
-            break
-
-    if not version_id:
-        # Try without filter
-        status, data = client.request("GET", f"/v1/apps/{app_id}/appStoreVersions")
-        if status == 200 and data.get("data"):
-            for v in data["data"]:
+            state = v["attributes"].get("appStoreState", "")
+            if state in ("PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"):
                 version_id = v["id"]
                 version_string = v["attributes"].get("versionString", "?")
-                state = v["attributes"].get("appStoreState", "?")
                 print(f"  App Store Version: {version_string} state={state} (id={version_id})")
                 break
+        if not version_id:
+            version_id = data["data"][0]["id"]
+            version_string = data["data"][0]["attributes"].get("versionString", "?")
+            state = data["data"][0]["attributes"].get("appStoreState", "?")
+            print(f"  App Store Version: {version_string} state={state} (id={version_id})")
 
     if not version_id:
         msg = "  No App Store version found — cannot upload screenshots"
         print(msg)
         errors.append("Screenshots: " + msg)
     else:
-        # Get existing appScreenshotSets for this version
-        status, data = client.request("GET", f"/v1/appStoreVersions/{version_id}/appScreenshotSets?limit=20")
-        existing_sets = {}
-        if status == 200 and data.get("data"):
-            for s in data["data"]:
-                display_type = s["attributes"].get("screenshotDisplayType", "")
-                existing_sets[display_type] = s["id"]
-                print(f"  Existing screenshotSet: {display_type} ({s['id']})")
+        # Get/create localizations for this version
+        status, data = client.request("GET", f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations?limit=20")
+        existing_locales = {}
+        if status == 200:
+            for loc in data.get("data", []):
+                locale = loc["attributes"].get("locale", "")
+                existing_locales[locale] = loc["id"]
+                print(f"  Localization: {locale} ({loc['id']})")
 
-        # Upload screenshots for each device type
-        screenshot_configs = [
-            ("iphone67", "APP_IPHONE_67", [
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone67/screenshot_1.png",
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone67/screenshot_2.png",
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone67/screenshot_3.png",
-            ]),
-            ("iphone65", "APP_IPHONE_65", [
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone65/screenshot_1.png",
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone65/screenshot_2.png",
-                f"{os.path.dirname(os.path.dirname(os.path.abspath(__file__)))}/fastlane/screenshots/iphone65/screenshot_3.png",
-            ]),
-        ]
-
-        for device_name, display_type, screenshot_files in screenshot_configs:
-            print(f"\n  --- Device: {device_name} ({display_type}) ---")
-
-            # Check if screenshotSet already exists
-            screenshot_set_id = existing_sets.get(display_type)
-
-            if not screenshot_set_id:
-                # Create screenshotSet
-                set_body = {
+        # Ensure both locales exist
+        for locale in ["en-US", "de-DE"]:
+            if locale not in existing_locales:
+                status, data = client.request("POST", "/v1/appStoreVersionLocalizations", {
                     "data": {
-                        "type": "appScreenshotSets",
+                        "type": "appStoreVersionLocalizations",
+                        "attributes": {"locale": locale},
                         "relationships": {
                             "appStoreVersion": {
                                 "data": {"type": "appStoreVersions", "id": version_id}
-                            },
-                            "screenshotDisplayType": {
-                                "data": {"type": "screenshotDisplayTypes", "id": display_type}
                             }
                         }
                     }
-                }
-                status, data = client.request("POST", "/v1/appScreenshotSets", set_body)
+                })
+                if status in (200, 201):
+                    existing_locales[locale] = data["data"]["id"]
+                    print(f"  Created localization: {locale} ({data['data']['id']})")
+                else:
+                    msg = f"  Failed to create {locale}: {status} {json.dumps(data)[:300]}"
+                    print(msg)
+                    errors.append("Localization: " + msg)
+
+        # Upload screenshots per localization
+        # ponytail: ASC requires screenshots per-locale per-display-type.
+        # We use the 6.7" screenshots (1290x2796) for APP_IPHONE_67 display type.
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        display_type = "APP_IPHONE_67"
+
+        for locale in ["en-US", "de-DE"]:
+            loc_id = existing_locales.get(locale)
+            if not loc_id:
+                print(f"\n  Skipping {locale} — no localization ID")
+                continue
+
+            print(f"\n  --- {locale} ({display_type}) ---")
+
+            # Find or create screenshotSet for this localization + display type
+            status, data = client.request("GET",
+                f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets?limit=10")
+            screenshot_set_id = None
+            if status == 200:
+                for ss in data.get("data", []):
+                    if ss.get("attributes", {}).get("screenshotDisplayType") == display_type:
+                        screenshot_set_id = ss["id"]
+                        break
+
+            if not screenshot_set_id:
+                status, data = client.request("POST", "/v1/appScreenshotSets", {
+                    "data": {
+                        "type": "appScreenshotSets",
+                        "attributes": {"screenshotDisplayType": display_type},
+                        "relationships": {
+                            "appStoreVersionLocalization": {
+                                "data": {"type": "appStoreVersionLocalizations", "id": loc_id}
+                            }
+                        }
+                    }
+                })
                 if status in (200, 201):
                     screenshot_set_id = data["data"]["id"]
                     print(f"    Created screenshotSet: {screenshot_set_id}")
                 else:
                     msg = f"    Create screenshotSet failed: {status} {json.dumps(data)[:300]}"
                     print(msg)
-                    errors.append(f"Screenshots {device_name}: " + msg)
+                    errors.append(f"Screenshots {locale}: " + msg)
                     continue
             else:
                 print(f"    Using existing screenshotSet: {screenshot_set_id}")
 
-            # Upload each screenshot
-            for i, screenshot_path in enumerate(screenshot_files):
-                if not os.path.exists(screenshot_path):
-                    msg = f"    Screenshot file not found: {screenshot_path}"
-                    print(msg)
-                    errors.append(f"Screenshots {device_name} #{i+1}: " + msg)
+            # Check if screenshots already exist and are valid
+            status, data = client.request("GET",
+                f"/v1/appScreenshotSets/{screenshot_set_id}/appScreenshots?limit=10")
+            existing_valid = 0
+            if status == 200 and data.get("data"):
+                for ss in data["data"]:
+                    if ss.get("attributes", {}).get("imageAsset"):
+                        existing_valid += 1
+                if existing_valid > 0:
+                    print(f"    Screenshots already exist ({existing_valid} valid) — skipping upload")
                     continue
 
-                file_size = os.path.getsize(screenshot_path)
-                print(f"    Uploading screenshot {i+1} ({file_size} bytes)...")
+            # Upload screenshots from fastlane/metadata/{locale}/screenshots/
+            ss_dir = repo_root / "fastlane" / "metadata" / locale / "screenshots"
+            if not ss_dir.exists():
+                ss_dir = repo_root / "fastlane" / "screenshots" / "iphone67"
+            ss_files = sorted(ss_dir.glob("*.png"))
 
-                # Step 1: Create appScreenshot reservation
-                reserve_body = {
+            for i, ss_file in enumerate(ss_files):
+                file_size = ss_file.stat().st_size
+                w, h = png_dimensions(str(ss_file))
+                print(f"    Uploading {ss_file.name} ({w}x{h}, {file_size} bytes)...")
+
+                # Reserve
+                status, data = client.request("POST", "/v1/appScreenshots", {
                     "data": {
                         "type": "appScreenshots",
                         "attributes": {
-                            "fileName": os.path.basename(screenshot_path),
+                            "fileName": ss_file.name,
                             "fileSize": file_size
                         },
                         "relationships": {
@@ -521,64 +563,47 @@ def main():
                             }
                         }
                     }
-                }
-                status, data = client.request("POST", "/v1/appScreenshots", reserve_body)
+                })
                 if status not in (200, 201):
                     msg = f"      Reserve failed: {status} {json.dumps(data)[:300]}"
                     print(msg)
-                    errors.append(f"Screenshots {device_name} #{i+1}: " + msg)
+                    errors.append(f"Screenshots {locale} #{i+1}: " + msg)
                     continue
 
                 screenshot_id = data["data"]["id"]
                 upload_ops = data["data"].get("attributes", {}).get("uploadOperations", [])
-                print(f"      Reserved: {screenshot_id} ({len(upload_ops)} upload ops)")
 
-                # Step 2: Upload file data to each upload operation URL
-                with open(screenshot_path, "rb") as f:
+                # Upload to each operation URL
+                with open(ss_file, "rb") as f:
                     file_data = f.read()
 
                 for op in upload_ops:
-                    op_url = op.get("url", "")
-                    op_method = op.get("method", "PUT")
-                    op_headers = {k: v for k, v in op.get("requestHeaders", {}).items()}
-                    # Extract path from full URL
-                    if "api.appstoreconnect.apple.com" in op_url:
-                        upload_path = op_url.split("api.appstoreconnect.apple.com", 1)[1]
-                    else:
-                        print(f"      External upload URL (skipping): {op_url[:80]}")
+                    upload_url = op.get("url", "")
+                    if not upload_url:
                         continue
+                    req = urllib.request.Request(upload_url, data=file_data, method=op.get("method", "PUT"))
+                    req.add_header("Content-Type", "application/octet-stream")
+                    try:
+                        resp = urllib.request.urlopen(req)
+                        if resp.status not in (200, 204):
+                            print(f"      Upload warning: HTTP {resp.status}")
+                    except Exception as e:
+                        print(f"      Upload error: {e}")
 
-                    client.conn.request("PUT", upload_path, body=file_data,
-                                        headers={"Content-Type": "application/octet-stream", **op_headers})
-                    resp = client.conn.getresponse()
-                    resp.read()
-                    if resp.status in (200, 204):
-                        print(f"      Chunk uploaded OK")
-                    else:
-                        print(f"      Upload chunk warning: {resp.status}")
-
-                # Step 3: Commit the upload
-                commit_body = {
+                # Commit
+                status, data = client.request("PATCH", f"/v1/appScreenshots/{screenshot_id}", {
                     "data": {
                         "type": "appScreenshots",
                         "id": screenshot_id,
-                        "attributes": {
-                            "uploaded": True
-                        },
-                        "relationships": {
-                            "appScreenshotSet": {
-                                "data": {"type": "appScreenshotSets", "id": screenshot_set_id}
-                            }
-                        }
+                        "attributes": {"uploaded": True}
                     }
-                }
-                status, data = client.request("PATCH", f"/v1/appScreenshots/{screenshot_id}", commit_body)
+                })
                 if status in (200, 201):
-                    print(f"      Screenshot {i+1} committed — OK")
+                    print(f"      Committed — OK")
                 else:
                     msg = f"      Commit failed: {status} {json.dumps(data)[:300]}"
                     print(msg)
-                    errors.append(f"Screenshots {device_name} #{i+1}: " + msg)
+                    errors.append(f"Screenshots {locale} #{i+1}: " + msg)
 
     # --- Summary ---
     print("\n" + "=" * 60)
