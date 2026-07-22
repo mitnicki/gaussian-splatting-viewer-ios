@@ -409,7 +409,8 @@ else:
 print(f"\nSubmitting App Store version {app_version} for review (3-step reviewSubmissions flow)...")
 time.sleep(3)
 
-# Step 0: Check for existing review submissions in flight
+# Step 0: Check for existing review submissions — reuse READY_FOR_REVIEW or exit if already submitted
+review_sub_id = None
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=20")
 if status == 200:
     for rs in data.get("data", []):
@@ -418,32 +419,38 @@ if status == 200:
             print(f"Review submission {rs['id']} already in state {rs_state} — app is submitted!")
             conn.close()
             sys.exit(0)
+        if rs_state == "READY_FOR_REVIEW" and not review_sub_id:
+            review_sub_id = rs["id"]
+            print(f"Found existing READY_FOR_REVIEW submission to reuse: {review_sub_id}")
 
-# Step 1: Create review submission container
-review_sub_id = None
-for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
-        "data": {
-            "type": "reviewSubmissions",
-            "relationships": {
-                "app": {
-                    "data": {"type": "apps", "id": app_id}
+# Step 1: Create review submission container (only if no reusable one found)
+if not review_sub_id:
+    print("No reusable submission found — creating new reviewSubmission (app relationship only)...")
+    for attempt in range(3):
+        status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
+            "data": {
+                "type": "reviewSubmissions",
+                "relationships": {
+                    "app": {
+                        "data": {"type": "apps", "id": app_id}
+                    }
                 }
             }
-        }
-    })
-    if status in (200, 201):
-        review_sub_id = data["data"]["id"]
-        print(f"Step 1 OK — review submission created: {review_sub_id}")
-        break
-    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:2000]}")
-    if attempt < 2:
-        time.sleep(5)
+        })
+        if status in (200, 201):
+            review_sub_id = data["data"]["id"]
+            print(f"Step 1 OK — review submission created: {review_sub_id}")
+            break
+        print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:2000]}")
+        if attempt < 2:
+            time.sleep(5)
 
-if not review_sub_id:
-    print("ERROR creating review submission after 3 attempts")
-    conn.close()
-    sys.exit(1)
+    if not review_sub_id:
+        print("ERROR creating review submission after 3 attempts")
+        conn.close()
+        sys.exit(1)
+else:
+    print(f"Reusing existing submission {review_sub_id} — skipping creation")
 
 time.sleep(3)
 
