@@ -203,8 +203,8 @@ if status == 200 and data.get("data"):
     else:
         print(f"  No manual prices found — may need to set")
 else:
-    # Get price points for this app in DEU territory
-    status, data = asc(conn, jwt, "GET", f"/v1/appPricePoints?filter[app]={app_id}&filter[territory]=DEU&limit=200")
+    # Get price points — must use app-nested endpoint, not standalone
+    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
     tier_id = None
     if status == 200:
         for pt in data.get("data", []):
@@ -253,7 +253,6 @@ review_attrs = {
     "contactFirstName": "Dennis",
     "contactLastName": "Kroeker",
     "contactEmail": "dennis@kroeker.cloud",
-    "contactPhone": "",
     "demoAccountRequired": False,
     "notes": "No demo account needed. Open the app and tap 'Try Demo' for the bundled sample scene.",
 }
