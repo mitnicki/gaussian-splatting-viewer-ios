@@ -402,8 +402,10 @@ else:
 print(f"\nSubmitting App Store version {app_version} for review (reviewSubmissions API)...")
 time.sleep(5)
 
-# Clean up stale reviewSubmissions from previous attempts
-status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=10")
+# Check for existing reviewSubmissions — reuse a READY_FOR_REVIEW one if available
+# (can't delete READY_FOR_REVIEW submissions, so we must reuse them)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=20")
+existing_review_sub_id = None
 if status == 200:
     for rs in data.get("data", []):
         rs_state = rs.get("attributes", {}).get("state", "")
@@ -411,44 +413,52 @@ if status == 200:
             print(f"Review submission {rs['id']} already in state {rs_state} — app is submitted!")
             conn.close()
             sys.exit(0)
-        # Delete ALL stale submissions — anything not actively in review
-        if rs_state not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+        if rs_state == "READY_FOR_REVIEW":
+            existing_review_sub_id = rs["id"]
+            print(f"  Found existing READY_FOR_REVIEW submission: {rs['id']} — will reuse")
+            break
+        # Delete stale submissions that CAN be deleted (PREPARE_FOR_SUBMISSION, OPEN, etc.)
+        if rs_state not in ("READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
             print(f"  Deleting stale review submission: {rs['id']} (state={rs_state})")
             asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
 
-# Step 1: Create review submission with app relationship only
-# Retry after cleanup — ASC needs a moment to process deletions
-time.sleep(3)
-for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
-        "data": {
-            "type": "reviewSubmissions",
-            "relationships": {
-                "app": {
-                    "data": {"type": "apps", "id": app_id}
+# Step 1: Create review submission (or reuse existing READY_FOR_REVIEW one)
+if existing_review_sub_id:
+    review_sub_id = existing_review_sub_id
+    print(f"Step 1 OK — reusing existing review submission: {review_sub_id}")
+else:
+    # Retry after cleanup — ASC needs a moment to process deletions
+    time.sleep(3)
+    for attempt in range(3):
+        status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
+            "data": {
+                "type": "reviewSubmissions",
+                "relationships": {
+                    "app": {
+                        "data": {"type": "apps", "id": app_id}
+                    }
                 }
             }
-        }
-    })
-    if status in (200, 201):
-        break
-    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
-    if attempt < 2:
-        # Re-cleanup stale submissions and retry
-        status_c, data_c = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=10")
-        if status_c == 200:
-            for rs in data_c.get("data", []):
-                rs_state = rs.get("attributes", {}).get("state", "")
-                if rs_state not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
-                    print(f"  Re-cleaning stale submission: {rs['id']} (state={rs_state})")
-                    asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
-        time.sleep(5)
-if status not in (200, 201):
-    print(f"ERROR creating review submission after 3 attempts (status={status}): {json.dumps(data)[:500]}")
-    conn.close()
-    sys.exit(1)
-review_sub_id = data["data"]["id"]
-print(f"Step 1 OK — review submission created: {review_sub_id}")
+        })
+        if status in (200, 201):
+            break
+        print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
+        if attempt < 2:
+            # Re-cleanup stale submissions and retry
+            status_c, data_c = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=10")
+            if status_c == 200:
+                for rs in data_c.get("data", []):
+                    rs_state = rs.get("attributes", {}).get("state", "")
+                    if rs_state not in ("READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+                        print(f"  Re-cleaning stale submission: {rs['id']} (state={rs_state})")
+                        asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
+            time.sleep(5)
+    if status not in (200, 201):
+        print(f"ERROR creating review submission after 3 attempts (status={status}): {json.dumps(data)[:500]}")
+        conn.close()
+        sys.exit(1)
+    review_sub_id = data["data"]["id"]
+    print(f"Step 1 OK — review submission created: {review_sub_id}")
 
 # Step 2: Add app version as reviewSubmissionItem
 # ponytail: The reviewSubmissions API uses reviewSubmissionItems to link versions.
