@@ -190,84 +190,55 @@ try_patch(conn, jwt, f"/v1/appStoreVersions/{version_id}", {
 }, f"copyright={COPYRIGHT}")
 
 # --- 6. Set price tier via appPriceSchedules ---
+# ponytail: territory IDs in ASC ARE the country codes (DEU, USA, etc),
+# so no territory lookup needed. Price points need app+territory filter.
 print(f"\n=== Price Tier {price_tier} ===")
-# Check if price schedule already exists
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPriceSchedule?include=manualPrices,baseTerritory")
 if status == 200 and data.get("data"):
     print(f"  Price schedule already exists: {data['data']['id']}")
-    # Verify it has a manual price
-    manual_prices = data.get("included", [])
-    price_points = [p for p in manual_prices if p.get("type") == "appPrices"]
+    included = data.get("included", [])
+    price_points = [p for p in included if p.get("type") == "appPrices"]
     if price_points:
         print(f"  Manual prices: {len(price_points)} — OK")
     else:
         print(f"  No manual prices found — may need to set")
 else:
-    # Get price point ID for tier 3 in DEU territory
-    # First get territories
-    status, data = asc(conn, jwt, "GET", "/v1/territories?limit=200")
-    deu_id = None
-    if status == 200:
-        for t in data.get("data", []):
-            if t["attributes"]["code"] == "DEU":
-                deu_id = t["id"]
-                break
-
-    # Get price points — need to find the one for tier 3
-    # The price point ID is a base64-encoded JSON like {"t":"DEU","p":"3"}
-    # Let's try to list price points for the app
-    status, data = asc(conn, jwt, "GET", f"/v1/appPricePoints?filter[territory]=DEU&limit=200")
-    tier3_id = None
+    # Get price points for this app in DEU territory
+    status, data = asc(conn, jwt, "GET", f"/v1/appPricePoints?filter[app]={app_id}&filter[territory]=DEU&limit=200")
+    tier_id = None
     if status == 200:
         for pt in data.get("data", []):
             attrs = pt.get("attributes", {})
-            # Price tier is in the attributes
             if str(attrs.get("priceTier", "")) == str(price_tier):
-                tier3_id = pt["id"]
-                print(f"  Found price point for tier {price_tier}: {tier3_id}")
+                tier_id = pt["id"]
+                print(f"  Found price point for tier {price_tier}: {tier_id}")
                 break
-
-    if not tier3_id:
-        # Construct price point ID manually — it's base64 of {"t":"DEU","p":"3"}
-        import base64 as b64mod
-        pp_json = json.dumps({"t": "DEU", "p": str(price_tier)})
-        tier3_id = b64mod.b64encode(pp_json.encode()).decode().rstrip("=")
-        print(f"  Constructed price point ID: {tier3_id}")
-
-    # POST /v1/appPriceSchedules
-    ok, resp = try_post(conn, jwt, "/v1/appPriceSchedules", {
-        "data": {
-            "type": "appPriceSchedules",
-            "relationships": {
-                "app": {
-                    "data": {"type": "apps", "id": app_id}
-                },
-                "baseTerritory": {
-                    "data": {"type": "territories", "id": "DEU"}
-                },
-                "manualPrices": {
-                    "data": [
-                        {"type": "appPrices", "id": f"price-{price_tier}-DEU"}
-                    ]
-                }
-            }
-        },
-        "included": [
-            {
-                "type": "appPrices",
-                "id": f"price-{price_tier}-DEU",
-                "attributes": {
-                    "startDate": None,
-                    "endDate": None
-                },
+    if not tier_id:
+        print(f"  WARN: Could not find price point for tier {price_tier} (status={status})")
+        if data.get("errors"):
+            print(f"  API errors: {json.dumps(data['errors'])[:300]}")
+        errors.append(f"Price tier {price_tier}: could not find price point")
+    else:
+        try_post(conn, jwt, "/v1/appPriceSchedules", {
+            "data": {
+                "type": "appPriceSchedules",
                 "relationships": {
-                    "appPricePoint": {
-                        "data": {"type": "appPricePoints", "id": tier3_id}
+                    "app": {"data": {"type": "apps", "id": app_id}},
+                    "baseTerritory": {"data": {"type": "territories", "id": "DEU"}},
+                    "manualPrices": {
+                        "data": [{"type": "appPrices", "id": f"price-{price_tier}-DEU"}]
                     }
                 }
-            }
-        ]
-    }, f"price schedule tier {price_tier}")
+            },
+            "included": [{
+                "type": "appPrices",
+                "id": f"price-{price_tier}-DEU",
+                "attributes": {"startDate": None, "endDate": None},
+                "relationships": {
+                    "appPricePoint": {"data": {"type": "appPricePoints", "id": tier_id}}
+                }
+            }]
+        }, f"price schedule tier {price_tier}")
 
 # --- 7. Set review contact info via appStoreReviewDetails (relationship to appStoreVersion) ---
 print("\n=== Review Contact Information ===")
