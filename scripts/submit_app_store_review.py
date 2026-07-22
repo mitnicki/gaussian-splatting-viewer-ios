@@ -200,6 +200,28 @@ if status != 200 or not data.get("data"):
 app_id = data["data"][0]["id"]
 print(f"App: {app_id} ({bundle_id})")
 
+# 1b. Declare DATA_NOT_COLLECTED for App Privacy (required before review submission)
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appDataUsages?limit=5")
+if status == 200 and not data.get("data"):
+    print("Declaring DATA_NOT_COLLECTED for App Privacy...")
+    status, data = asc(conn, jwt, "POST", "/v1/appDataUsages", {
+        "data": {
+            "type": "appDataUsages",
+            "attributes": {"dataUsage": "DATA_NOT_COLLECTED"},
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app_id}}
+            }
+        }
+    })
+    if status in (200, 201):
+        print("  OK — App Privacy declared: DATA_NOT_COLLECTED")
+    else:
+        print(f"  WARNING: Could not set app data usage (status={status}): {json.dumps(data)[:300]}")
+elif status == 200:
+    print("App Privacy already configured — skipping")
+else:
+    print(f"  WARNING: Could not check app data usages (status={status}): {json.dumps(data)[:200]}")
+
 # 2. Get latest VALID build
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/builds?limit=20")
 if status != 200:
