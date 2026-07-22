@@ -381,89 +381,97 @@ elif status == 403:
 else:
     print(f"Submission check returned {status} — proceeding to create anyway.")
 
-# 8. Submit for review
-print(f"\nSubmitting App Store version {app_version} for review...")
+# 8. Submit for review — new 3-step flow (reviewSubmissions API)
+# ponytail: /v1/appStoreVersionSubmissions is deprecated (returns 403 "does not allow CREATE").
+# Apple replaced it with /v1/reviewSubmissions — 3 steps: create container, add item, set submitted=true.
+print(f"\nSubmitting App Store version {app_version} for review (3-step reviewSubmissions flow)...")
 time.sleep(5)
 
-for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", "/v1/appStoreVersionSubmissions", {
-        "data": {
-            "type": "appStoreVersionSubmissions",
-            "relationships": {
-                "appStoreVersion": {
-                    "data": {"type": "appStoreVersions", "id": app_store_version_id}
-                }
+# Step 1: Create review submission container (related to APP, not version)
+status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
+    "data": {
+        "type": "reviewSubmissions",
+        "relationships": {
+            "app": {
+                "data": {"type": "apps", "id": app_id}
             }
         }
-    })
-    if status == 201:
-        sub_id = data["data"]["id"]
-        state = data["data"]["attributes"].get("state", "")
-        print(f"SUCCESS — Submission created: {sub_id} state={state}")
-        print(f"App Store version {app_version} (build {build_version}) submitted for review.")
-        print("Review typically takes 24-48 hours.")
-        break
-    elif status == 403:
-        err_detail = ""
-        if data.get("errors"):
-            for e in data["errors"]:
-                err_detail += e.get("detail", "") + " "
-        print(f"Attempt {attempt+1}: 403 — {err_detail.strip()}")
-        if "does not allow" in err_detail and "CREATE" in err_detail and "DELETE" in err_detail:
-            # ponytail: A stale submission exists — POST says only DELETE is allowed.
-            # The GET endpoint returned 404 (key can't read submissions) but POST
-            # confirms one exists. Try to find and delete it, then retry.
-            print("  Stale submission detected — attempting DELETE then retry...")
-            # Query the version's submission relationship to find the submission ID
-            status2, data2 = asc(conn, jwt, "GET",
-                f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionSubmission")
-            if status2 == 200 and data2.get("data"):
-                stale_id = data2["data"]["id"]
-                print(f"  Found stale submission: {stale_id} — deleting...")
-                status3, data3 = asc(conn, jwt, "DELETE", f"/v1/appStoreVersionSubmissions/{stale_id}")
-                if status3 in (200, 204):
-                    print("  Stale submission deleted. Retrying create...")
-                    time.sleep(5)
-                    continue
-                else:
-                    print(f"  DELETE failed: {status3} {json.dumps(data3)[:300]}")
-            else:
-                # Can't find the submission via GET — try deleting by version relationship
-                print(f"  GET returned {status2} — trying direct DELETE on version relationship...")
-                # ponytail: DELETE via the relationship endpoint
-                status3, data3 = asc(conn, jwt, "DELETE",
-                    f"/v1/appStoreVersions/{app_store_version_id}/relationships/appStoreVersionSubmission")
-                if status3 in (200, 204):
-                    print("  Stale submission deleted via relationship. Retrying...")
-                    time.sleep(5)
-                    continue
-                else:
-                    print(f"  Relationship DELETE failed: {status3} {json.dumps(data3)[:300]}")
-            # If we get here, DELETE didn't work — fall through to retry
-            if attempt < 2:
-                time.sleep(10)
-    elif status == 422:
-        err_detail = ""
-        if data.get("errors"):
-            for e in data["errors"]:
-                err_detail += e.get("detail", "") + " "
-        print(f"Attempt {attempt+1}: 422 — {err_detail.strip()}")
-        if attempt < 2:
-            print("Waiting 15s...")
-            time.sleep(15)
-    elif status == 409:
-        print(f"Already submitted: {json.dumps(data)[:200]}")
-        break
+    }
+})
+if status not in (200, 201):
+    # If 409, a review submission may already exist — try to find it
+    if status == 409:
+        print(f"Review submission already exists (409), fetching...")
+        status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=5")
+        if status == 200 and data.get("data"):
+            # Use the most recent one
+            review_sub_id = data["data"][0]["id"]
+            print(f"Using existing review submission: {review_sub_id}")
+        else:
+            print(f"ERROR: Could not fetch existing review submission: {status} {json.dumps(data)[:300]}")
+            conn.close()
+            sys.exit(1)
     else:
-        print(f"Attempt {attempt+1}: {status} {json.dumps(data)[:500]}")
-        if attempt < 2:
-            time.sleep(10)
+        print(f"ERROR creating review submission (status={status}): {json.dumps(data)[:500]}")
+        conn.close()
+        sys.exit(1)
+else:
+    review_sub_id = data["data"]["id"]
+    print(f"Step 1 OK — review submission created: {review_sub_id}")
 
-# If we get here, all attempts failed
-if status != 201 and status != 409:
-    print("\nAll submission attempts failed.")
-    print("If the 403 persists after DELETE attempt, the API key may lack Create permission.")
-    print("Manual fallback: App Store Connect → select version 1.0 → click 'Add for Review'.")
+# Step 2: Add app version to the submission
+print(f"Step 2 — Adding version {app_store_version_id} to submission {review_sub_id}...")
+status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
+    "data": {
+        "type": "reviewSubmissionItems",
+        "relationships": {
+            "reviewSubmission": {
+                "data": {"type": "reviewSubmissions", "id": review_sub_id}
+            },
+            "appStoreVersion": {
+                "data": {"type": "appStoreVersions", "id": app_store_version_id}
+            }
+        }
+    }
+})
+if status in (200, 201):
+    item_id = data["data"]["id"]
+    print(f"Step 2 OK — review submission item created: {item_id}")
+elif status == 409:
+    print(f"Step 2 — Item already linked (409), proceeding to submit...")
+else:
+    print(f"Step 2 WARNING: status={status} {json.dumps(data)[:500]}")
+    # Continue anyway — item might already exist
+
+time.sleep(3)
+
+# Step 3: Set submitted=true to send to review
+print(f"Step 3 — Setting submitted=true on submission {review_sub_id}...")
+status, data = asc(conn, jwt, "PATCH", f"/v1/reviewSubmissions/{review_sub_id}", {
+    "data": {
+        "type": "reviewSubmissions",
+        "id": review_sub_id,
+        "attributes": {
+            "submitted": True
+        }
+    }
+})
+if status in (200, 201):
+    state = data.get("data", {}).get("attributes", {}).get("state", "")
+    print(f"SUCCESS — Submission sent for review: {review_sub_id} state={state}")
+    print(f"App Store version {app_version} (build {build_version}) submitted for review.")
+    print("Review typically takes 24-48 hours.")
+else:
+    print(f"Step 3 ERROR: status={status} {json.dumps(data)[:500]}")
+    # Check if version is already in review (submission may have worked despite error)
+    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
+    if status == 200:
+        for v in data.get("data", []):
+            if v["id"] == app_store_version_id:
+                state = v["attributes"].get("appStoreState", "")
+                if state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE"):
+                    print(f"Version state is {state} — submission was successful!")
+                    break
     conn.close()
     sys.exit(1)
 
