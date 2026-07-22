@@ -400,16 +400,18 @@ elif status == 403:
 else:
     print(f"Submission check returned {status} — proceeding to create anyway.")
 
-# 8. Submit for review — new reviewSubmissions API
-# ponytail: /v1/appStoreVersionSubmissions is deprecated (returns 403 "does not allow CREATE").
-# Apple replaced it with /v1/reviewSubmissions. The appStoreVersionForReview relationship
-# must be set on CREATE (POST), not on UPDATE (PATCH). reviewSubmissionItems are NOT needed.
+# 8. Submit for review — reviewSubmissions API
+# ponytail: appStoreVersionForReview is a to-one relationship that must be set
+# via PATCH /v1/reviewSubmissions/{id}/relationships/appStoreVersionForReview,
+# NOT in the POST body (Apple returns 409 ENTITY_ERROR.RELATIONSHIP.NOT_ALLOWED).
+# DELETE on reviewSubmissions returns 403 for App Manager keys, so we reuse
+# an existing READY_FOR_REVIEW submission instead of deleting + recreating.
 print(f"\nSubmitting App Store version {app_version} for review (reviewSubmissions API)...")
 time.sleep(5)
 
-# Check for existing reviewSubmissions — delete ALL (including READY_FOR_REVIEW)
-# because appStoreVersionForReview can only be set on CREATE, not UPDATE.
-# ponytail: READY_FOR_REVIEW submissions CAN be deleted, despite old assumption.
+review_sub_id = None
+
+# Step 0: Find an existing READY_FOR_REVIEW reviewSubmission to reuse
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=20")
 if status == 200:
     for rs in data.get("data", []):
@@ -418,50 +420,49 @@ if status == 200:
             print(f"Review submission {rs['id']} already in state {rs_state} — app is submitted!")
             conn.close()
             sys.exit(0)
-        print(f"  Deleting review submission: {rs['id']} (state={rs_state})")
-        del_status, del_data = asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
-        if del_status in (200, 204):
-            print(f"    OK — deleted")
-        else:
-            print(f"    WARN — delete returned {del_status}: {json.dumps(del_data)[:200]}")
+        if rs_state == "READY_FOR_REVIEW":
+            review_sub_id = rs["id"]
+            print(f"Found existing READY_FOR_REVIEW submission: {review_sub_id}")
+            break
 
-# Step 1: Create review submission with appStoreVersionForReview
-# ponytail: appStoreVersionForReview can only be set on CREATE (POST),
-# not on UPDATE (PATCH). So we always create a fresh submission after
-# deleting all existing ones above.
-review_sub_id = None
-time.sleep(3)  # let deletions process
-for attempt in range(3):
-    status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
-        "data": {
-            "type": "reviewSubmissions",
-            "relationships": {
-                "app": {
-                    "data": {"type": "apps", "id": app_id}
-                },
-                "appStoreVersionForReview": {
-                    "data": {"type": "appStoreVersions", "id": app_store_version_id}
+# Step 1: Create review submission if we didn't find one to reuse
+if not review_sub_id:
+    print("No reusable submission found — creating new reviewSubmission (app relationship only)...")
+    time.sleep(3)
+    for attempt in range(3):
+        status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
+            "data": {
+                "type": "reviewSubmissions",
+                "relationships": {
+                    "app": {
+                        "data": {"type": "apps", "id": app_id}
+                    }
                 }
             }
-        }
+        })
+        if status in (200, 201):
+            review_sub_id = data["data"]["id"]
+            print(f"Step 1 OK — review submission created: {review_sub_id}")
+            break
+        print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
+        if attempt < 2:
+            time.sleep(5)
+
+    if not review_sub_id:
+        print("ERROR creating review submission after 3 attempts")
+        conn.close()
+        sys.exit(1)
+
+# Step 2: Link the App Store version via the dedicated relationship endpoint
+print(f"Step 2 — Linking appStoreVersionForReview via relationship endpoint...")
+status, data = asc(conn, jwt, "PATCH",
+    f"/v1/reviewSubmissions/{review_sub_id}/relationships/appStoreVersionForReview", {
+        "data": {"type": "appStoreVersions", "id": app_store_version_id}
     })
-    if status in (200, 201):
-        review_sub_id = data["data"]["id"]
-        print(f"Step 1 OK — review submission created: {review_sub_id}")
-        break
-    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
-    if attempt < 2:
-        time.sleep(5)
-
-if not review_sub_id:
-    print(f"ERROR creating review submission after 3 attempts")
-    conn.close()
-    sys.exit(1)
-
-# Step 2: Skip reviewSubmissionItems — appStoreVersionForReview is set directly
-# on the reviewSubmission in Step 1. The reviewSubmissionItems approach caused
-# 409 STATE_ERROR.ENTITY_STATE_INVALID because the version wasn't linked.
-print(f"Step 2 — appStoreVersionForReview already set on submission, skipping reviewSubmissionItems")
+if status in (200, 204):
+    print(f"  OK — appStoreVersionForReview linked to {app_store_version_id}")
+else:
+    print(f"  WARN — relationship PATCH returned {status}: {json.dumps(data)[:300]}")
 
 time.sleep(3)
 
