@@ -190,48 +190,60 @@ try_patch(conn, jwt, f"/v1/appStoreVersions/{version_id}", {
 }, f"copyright={COPYRIGHT}")
 
 # --- 6. Set price tier via appPriceSchedules ---
-# ponytail: territory IDs in ASC ARE the country codes (DEU, USA, etc),
-# so no territory lookup needed. Price points need app+territory filter.
+# ponytail: v2/appPricePoints is the correct endpoint (v1 app-nested is deprecated).
+# Price point IDs map to specific tiers per territory.
 print(f"\n=== Price Tier {price_tier} ===")
 status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPriceSchedule?include=manualPrices,baseTerritory")
 if status == 200 and data.get("data"):
-    print(f"  Price schedule already exists: {data['data']['id']}")
     included = data.get("included", [])
     price_points = [p for p in included if p.get("type") == "appPrices"]
     if price_points:
-        print(f"  Manual prices: {len(price_points)} — OK")
+        print(f"  Price schedule exists with {len(price_points)} manual prices — OK")
     else:
-        print(f"  No manual prices found — may need to set")
-else:
-    # Get price points — must use app-nested endpoint, not standalone
-    # ponytail: priceTier attribute may not exist in the API response.
-    # Match by price value (2.99 EUR) as fallback.
-    status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
+        print(f"  Price schedule exists but no manual prices — need to set")
+        # Fall through to set pricing below
+        data = {}  # Clear so we enter the else branch
+if not (status == 200 and data.get("data")):
+    # Look up price points via v2 endpoint
+    status, data = asc(conn, jwt, "GET", f"/v2/appPricePoints?filter[territory]=DEU&limit=200")
     tier_id = None
     if status == 200:
         for pt in data.get("data", []):
             attrs = pt.get("attributes", {})
-            # Try matching by priceTier first, then by price value
-            if str(attrs.get("priceTier", "")) == str(price_tier):
+            # v2 returns customerPrice object with value
+            cp = attrs.get("customerPrice", {})
+            if isinstance(cp, dict):
+                amount = str(cp.get("value", ""))
+            else:
+                amount = str(cp)
+            # Tier 3 = 2.99 EUR in DEU
+            if amount == "2.99":
                 tier_id = pt["id"]
-                print(f"  Found price point for tier {price_tier}: {tier_id}")
+                print(f"  Found price point for 2.99 EUR (tier {price_tier}): {tier_id}")
                 break
-            # Fallback: match by price (Tier 3 DEU = 2.99 EUR)
-            price_val = attrs.get("price", {})
-            if isinstance(price_val, dict):
-                amount = str(price_val.get("value", ""))
-                if amount == "2.99":
+    if not tier_id:
+        # Fallback: try v1 app-nested endpoint
+        status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
+        if status == 200:
+            for pt in data.get("data", []):
+                attrs = pt.get("attributes", {})
+                if str(attrs.get("priceTier", "")) == str(price_tier):
+                    tier_id = pt["id"]
+                    print(f"  Found price point for tier {price_tier}: {tier_id}")
+                    break
+                price_val = attrs.get("price", {})
+                if isinstance(price_val, dict) and str(price_val.get("value", "")) == "2.99":
                     tier_id = pt["id"]
                     print(f"  Found price point by price 2.99 EUR: {tier_id}")
                     break
-            elif str(price_val) == "2.99":
-                tier_id = pt["id"]
-                print(f"  Found price point by price 2.99 EUR: {tier_id}")
-                break
     if not tier_id:
         print(f"  WARN: Could not find price point for tier {price_tier} (status={status})")
         if data.get("errors"):
             print(f"  API errors: {json.dumps(data['errors'])[:300]}")
+        # Print first few price points for debugging
+        if data.get("data"):
+            for pt in data["data"][:3]:
+                print(f"    Sample: {pt['id']} attrs={json.dumps(pt.get('attributes',{}))[:200]}")
         errors.append(f"Price tier {price_tier}: could not find price point")
     else:
         try_post(conn, jwt, "/v1/appPriceSchedules", {
