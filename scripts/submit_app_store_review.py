@@ -91,14 +91,20 @@ def upload_screenshot(conn, jwt, localization_id, screenshot_path, display_type=
     else:
         print(f"    Using existing screenshot set: {existing_set_id}")
 
-    # Check if screenshots already exist in the set AND have valid image assets
+    # Check if screenshots already exist in the set AND have valid image assets.
+    # Delete any broken/incomplete uploads first — they block version submission (409 STATE_ERROR.ENTITY_STATE_INVALID).
     status, data = asc(conn, jwt, "GET",
         f"/v1/appScreenshotSets/{existing_set_id}/appScreenshots?limit=10")
     if status == 200 and data.get("data"):
         valid_count = 0
         for ss in data["data"]:
-            if ss.get("attributes", {}).get("imageAsset"):
+            attrs = ss.get("attributes", {})
+            if attrs.get("imageAsset"):
                 valid_count += 1
+            else:
+                # Broken upload — no imageAsset means incomplete. Delete it.
+                print(f"    Deleting broken screenshot: {ss['id']} (no imageAsset)")
+                asc(conn, jwt, "DELETE", f"/v1/appScreenshots/{ss['id']}")
         if valid_count > 0:
             print(f"    Screenshots already exist ({valid_count} valid) — skipping upload")
             return True
