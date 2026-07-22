@@ -402,16 +402,13 @@ if status == 200:
             print(f"  Deleting stale review submission: {rs['id']} (state={rs_state})")
             asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
 
-# Step 1: Create review submission with app + appStoreVersionForReview relationship
+# Step 1: Create review submission with app relationship only
 status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
     "data": {
         "type": "reviewSubmissions",
         "relationships": {
             "app": {
                 "data": {"type": "apps", "id": app_id}
-            },
-            "appStoreVersionForReview": {
-                "data": {"type": "appStoreVersions", "id": app_store_version_id}
             }
         }
     }
@@ -423,10 +420,23 @@ if status not in (200, 201):
 review_sub_id = data["data"]["id"]
 print(f"Step 1 OK — review submission created: {review_sub_id}")
 
+# Step 2: Link appStoreVersionForReview via relationship endpoint
+# ponytail: appStoreVersionForReview can't be set on CREATE or UPDATE body.
+# Must use the relationship endpoint: PATCH /v1/reviewSubmissions/{id}/relationships/appStoreVersionForReview
+print(f"Step 2 — Linking appStoreVersionForReview...")
+status, data = asc(conn, jwt, "PATCH",
+    f"/v1/reviewSubmissions/{review_sub_id}/relationships/appStoreVersionForReview", {
+    "data": {"type": "appStoreVersions", "id": app_store_version_id}
+})
+if status not in (200, 201, 204):
+    print(f"Step 2 WARNING: status={status} {json.dumps(data)[:500]}")
+else:
+    print(f"Step 2 OK — appStoreVersionForReview linked")
+
 time.sleep(3)
 
-# Step 2: Set submitted=true (no relationships — only attributes)
-print(f"Step 2 — Setting submitted=true on submission {review_sub_id}...")
+# Step 3: Set submitted=true (attributes only, no relationships)
+print(f"Step 3 — Setting submitted=true on submission {review_sub_id}...")
 status, data = asc(conn, jwt, "PATCH", f"/v1/reviewSubmissions/{review_sub_id}", {
     "data": {
         "type": "reviewSubmissions",
