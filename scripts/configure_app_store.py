@@ -204,14 +204,29 @@ if status == 200 and data.get("data"):
         print(f"  No manual prices found — may need to set")
 else:
     # Get price points — must use app-nested endpoint, not standalone
+    # ponytail: priceTier attribute may not exist in the API response.
+    # Match by price value (2.99 EUR) as fallback.
     status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appPricePoints?filter[territory]=DEU&limit=200")
     tier_id = None
     if status == 200:
         for pt in data.get("data", []):
             attrs = pt.get("attributes", {})
+            # Try matching by priceTier first, then by price value
             if str(attrs.get("priceTier", "")) == str(price_tier):
                 tier_id = pt["id"]
                 print(f"  Found price point for tier {price_tier}: {tier_id}")
+                break
+            # Fallback: match by price (Tier 3 DEU = 2.99 EUR)
+            price_val = attrs.get("price", {})
+            if isinstance(price_val, dict):
+                amount = str(price_val.get("value", ""))
+                if amount == "2.99":
+                    tier_id = pt["id"]
+                    print(f"  Found price point by price 2.99 EUR: {tier_id}")
+                    break
+            elif str(price_val) == "2.99":
+                tier_id = pt["id"]
+                print(f"  Found price point by price 2.99 EUR: {tier_id}")
                 break
     if not tier_id:
         print(f"  WARN: Could not find price point for tier {price_tier} (status={status})")
@@ -253,6 +268,7 @@ review_attrs = {
     "contactFirstName": "Dennis",
     "contactLastName": "Kroeker",
     "contactEmail": "dennis@kroeker.cloud",
+    "contactPhone": os.environ.get("ASC_REVIEW_PHONE", "+49 571 00000000"),
     "demoAccountRequired": False,
     "notes": "No demo account needed. Open the app and tap 'Try Demo' for the bundled sample scene.",
 }
