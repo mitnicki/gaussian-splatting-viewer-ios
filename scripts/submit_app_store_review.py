@@ -346,6 +346,14 @@ for locale in ["de-DE", "en-US"]:
         print(f"    {ss_file.name}: {w}x{h}")
         upload_screenshot(conn, jwt, loc_id, str(ss_file))
 
+    # Upload iPad screenshots (required for universal apps)
+    ipad_dir = pathlib.Path(f"fastlane/metadata/{locale}/screenshots_ipad")
+    if ipad_dir.exists():
+        for ss_file in sorted(ipad_dir.glob("*.png")):
+            w, h = png_dimensions(str(ss_file))
+            print(f"    {ss_file.name}: {w}x{h}")
+            upload_screenshot(conn, jwt, loc_id, str(ss_file), display_type="APP_IPAD_PRO_3GEN_129")
+
 # 6. Link build to App Store version
 print(f"\nLinking build {build_id} to App Store version {app_store_version_id}...")
 status, data = asc(conn, jwt, "PATCH", f"/v1/appStoreVersions/{app_store_version_id}/relationships/build", {
