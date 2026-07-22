@@ -420,22 +420,92 @@ if status not in (200, 201):
 review_sub_id = data["data"]["id"]
 print(f"Step 1 OK — review submission created: {review_sub_id}")
 
-# Step 2: Link appStoreVersionForReview via relationship endpoint
-# ponytail: appStoreVersionForReview can't be set on CREATE or UPDATE body.
-# Must use the relationship endpoint: PATCH /v1/reviewSubmissions/{id}/relationships/appStoreVersionForReview
-print(f"Step 2 — Linking appStoreVersionForReview...")
-status, data = asc(conn, jwt, "PATCH",
-    f"/v1/reviewSubmissions/{review_sub_id}/relationships/appStoreVersionForReview", {
-    "data": {"type": "appStoreVersions", "id": app_store_version_id}
+# Step 2: Add app version as reviewSubmissionItem
+# ponytail: The reviewSubmissions API uses reviewSubmissionItems to link versions.
+# appStoreVersionForReview relationship has "no allowed operations" via API —
+# it's managed internally when reviewSubmissionItems are created.
+print(f"Step 2 — Adding version {app_store_version_id} as reviewSubmissionItem...")
+status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
+    "data": {
+        "type": "reviewSubmissionItems",
+        "relationships": {
+            "reviewSubmission": {
+                "data": {"type": "reviewSubmissions", "id": review_sub_id}
+            },
+            "appStoreVersion": {
+                "data": {"type": "appStoreVersions", "id": app_store_version_id}
+            }
+        }
+    }
 })
-if status not in (200, 201, 204):
-    print(f"Step 2 WARNING: status={status} {json.dumps(data)[:500]}")
+if status in (200, 201):
+    print(f"Step 2 OK — review submission item created: {data['data']['id']}")
+elif status == 409:
+    # Item already exists — find and delete it, then retry
+    print(f"Step 2 — Item exists (409), finding and deleting stale item...")
+    # Get all reviewSubmissionItems for this reviewSubmission
+    status2, data2 = asc(conn, jwt, "GET",
+        f"/v1/reviewSubmissions/{review_sub_id}/reviewSubmissionItems?limit=20")
+    if status2 == 200 and data2.get("data"):
+        for item in data2["data"]:
+            print(f"  Deleting stale item: {item['id']}")
+            asc(conn, jwt, "DELETE", f"/v1/reviewSubmissionItems/{item['id']}")
+        # Retry creating the item
+        time.sleep(2)
+        status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
+            "data": {
+                "type": "reviewSubmissionItems",
+                "relationships": {
+                    "reviewSubmission": {
+                        "data": {"type": "reviewSubmissions", "id": review_sub_id}
+                    },
+                    "appStoreVersion": {
+                        "data": {"type": "appStoreVersions", "id": app_store_version_id}
+                    }
+                }
+            }
+        })
+        if status in (200, 201):
+            print(f"Step 2 OK — review submission item created after cleanup: {data['data']['id']}")
+        else:
+            print(f"Step 2 WARNING after cleanup: status={status} {json.dumps(data)[:500]}")
+    else:
+        # The item might be on a different reviewSubmission — search all items
+        print(f"  Could not find items on current submission (status={status2})")
+        print(f"  The item may be linked to a different review submission.")
+        print(f"  Cleaning up ALL stale review submissions and retrying...")
+        # Delete ALL review submissions for this app, then recreate
+        status3, data3 = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=20")
+        if status3 == 200:
+            for rs in data3.get("data", []):
+                if rs["id"] != review_sub_id:
+                    print(f"  Deleting stale review submission: {rs['id']}")
+                    asc(conn, jwt, "DELETE", f"/v1/reviewSubmissions/{rs['id']}")
+            time.sleep(3)
+            # Retry creating the item
+            status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
+                "data": {
+                    "type": "reviewSubmissionItems",
+                    "relationships": {
+                        "reviewSubmission": {
+                            "data": {"type": "reviewSubmissions", "id": review_sub_id}
+                        },
+                        "appStoreVersion": {
+                            "data": {"type": "appStoreVersions", "id": app_store_version_id}
+                        }
+                    }
+                }
+            })
+            if status in (200, 201):
+                print(f"Step 2 OK — review submission item created after full cleanup: {data['data']['id']}")
+            else:
+                print(f"Step 2 WARNING after full cleanup: status={status} {json.dumps(data)[:500]}")
 else:
-    print(f"Step 2 OK — appStoreVersionForReview linked")
+    print(f"Step 2 WARNING: status={status} {json.dumps(data)[:500]}")
 
 time.sleep(3)
 
-# Step 3: Set submitted=true (attributes only, no relationships)
+# Step 3: Set submitted=true (attributes only)
 print(f"Step 3 — Setting submitted=true on submission {review_sub_id}...")
 status, data = asc(conn, jwt, "PATCH", f"/v1/reviewSubmissions/{review_sub_id}", {
     "data": {
