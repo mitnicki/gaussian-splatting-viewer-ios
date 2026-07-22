@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action: deliver_metadata or submit_review"
+        description: "Action: configure (metadata+screenshots) or submit_review"
         required: true
         type: choice
-        default: "deliver_metadata"
+        default: "configure"
         options:
-          - deliver_metadata
+          - configure
           - submit_review
 
 jobs:
@@ -18,22 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-ruby@v1
+      - uses: actions/setup-python@v5
         with:
-          ruby-version: "3.2"
+          python-version: "3.12"
 
-      - name: Install fastlane
-        run: gem install fastlane --no-document
+      - name: Install dependencies
+        run: pip install cryptography pillow
 
-      - name: Deliver metadata or submit review
-        run: |
-          if [ "${{ github.event.inputs.action }}" = "submit_review" ]; then
-            fastlane submit_review
-          else
-            fastlane deliver_metadata
-          fi
+      - name: Configure App Store metadata and upload screenshots
+        if: ${{ github.event.inputs.action == 'configure' }}
+        run: python3 scripts/configure_app_store.py
         env:
           ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Submit for App Store Review
+        if: ${{ github.event.inputs.action == 'submit_review' }}
+        run: python3 scripts/submit_review.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
