@@ -222,6 +222,14 @@ if not (status == 200 and data.get("data")):
         if v1_status == 200:
             for pt in v1_data.get("data", []):
                 attrs = pt.get("attributes", {})
+                # v1 also returns customerPrice as string now
+                cp = attrs.get("customerPrice", {})
+                amount = str(cp.get("value", "")) if isinstance(cp, dict) else str(cp)
+                if amount == "2.99":
+                    tier_id = pt["id"]
+                    print(f"  Found price point by customerPrice 2.99 EUR: {tier_id}")
+                    break
+                # Legacy: priceTier or price dict
                 if str(attrs.get("priceTier", "")) == str(price_tier):
                     tier_id = pt["id"]
                     print(f"  Found price point for tier {price_tier}: {tier_id}")
