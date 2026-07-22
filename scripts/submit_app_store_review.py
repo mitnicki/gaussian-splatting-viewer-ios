@@ -400,34 +400,94 @@ elif status == 403:
 else:
     print(f"Submission check returned {status} — proceeding to create anyway.")
 
-# 8. Submit for review — appStoreVersionSubmission API
-# ponytail: reviewSubmissions API requires appStoreVersionForReview relationship
-# which can't be set via POST (409) or PATCH (403) with App Manager keys.
-# The simpler appStoreVersionSubmission API creates a submission directly on the
-# version — no intermediary, no relationship juggling.
-print(f"\nSubmitting App Store version {app_version} for review...")
+# 8. Submit for review — 3-step reviewSubmissions API
+# ponytail: appStoreVersionSubmissions is deprecated.
+# The new flow per Apple's current API:
+#   Step 1: POST /v1/reviewSubmissions (app relationship only) → creates container
+#   Step 2: POST /v1/reviewSubmissionItems (links version to submission)
+#   Step 3: PATCH /v1/reviewSubmissions/{id} with submitted=true → sends to queue
+print(f"\nSubmitting App Store version {app_version} for review (3-step reviewSubmissions flow)...")
 time.sleep(3)
 
-status, data = asc(conn, jwt, "POST",
-    f"/v1/appStoreVersions/{app_store_version_id}/appStoreVersionSubmission", {
+# Step 0: Check for existing review submissions in flight
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/reviewSubmissions?limit=20")
+if status == 200:
+    for rs in data.get("data", []):
+        rs_state = rs.get("attributes", {}).get("state", "")
+        if rs_state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"):
+            print(f"Review submission {rs['id']} already in state {rs_state} — app is submitted!")
+            conn.close()
+            sys.exit(0)
+
+# Step 1: Create review submission container
+review_sub_id = None
+for attempt in range(3):
+    status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissions", {
         "data": {
-            "type": "appStoreVersionSubmissions",
+            "type": "reviewSubmissions",
             "relationships": {
-                "appStoreVersion": {
-                    "data": {"type": "appStoreVersions", "id": app_store_version_id}
+                "app": {
+                    "data": {"type": "apps", "id": app_id}
                 }
             }
         }
     })
+    if status in (200, 201):
+        review_sub_id = data["data"]["id"]
+        print(f"Step 1 OK — review submission created: {review_sub_id}")
+        break
+    print(f"Step 1 attempt {attempt+1} failed (status={status}): {json.dumps(data)[:300]}")
+    if attempt < 2:
+        time.sleep(5)
 
+if not review_sub_id:
+    print("ERROR creating review submission after 3 attempts")
+    conn.close()
+    sys.exit(1)
+
+time.sleep(3)
+
+# Step 2: Add the App Store version to the submission via reviewSubmissionItems
+print(f"Step 2 — Adding appStoreVersion {app_store_version_id} to submission {review_sub_id}...")
+status, data = asc(conn, jwt, "POST", "/v1/reviewSubmissionItems", {
+    "data": {
+        "type": "reviewSubmissionItems",
+        "relationships": {
+            "reviewSubmission": {
+                "data": {"type": "reviewSubmissions", "id": review_sub_id}
+            },
+            "appStoreVersion": {
+                "data": {"type": "appStoreVersions", "id": app_store_version_id}
+            }
+        }
+    }
+})
 if status in (200, 201):
-    sub_id = data.get("data", {}).get("id", "")
+    print(f"  OK — version linked to submission")
+else:
+    print(f"  WARN — reviewSubmissionItems returned {status}: {json.dumps(data)[:300]}")
+    # Continue anyway — the version might already be linked
+
+time.sleep(3)
+
+# Step 3: Submit (set submitted=true)
+print(f"Step 3 — Setting submitted=true on submission {review_sub_id}...")
+status, data = asc(conn, jwt, "PATCH", f"/v1/reviewSubmissions/{review_sub_id}", {
+    "data": {
+        "type": "reviewSubmissions",
+        "id": review_sub_id,
+        "attributes": {
+            "submitted": True
+        }
+    }
+})
+if status in (200, 201):
     state = data.get("data", {}).get("attributes", {}).get("state", "")
-    print(f"SUCCESS — Submission sent for review: {sub_id} state={state}")
+    print(f"SUCCESS — Submission sent for review: {review_sub_id} state={state}")
     print(f"App Store version {app_version} (build {build_version}) submitted for review.")
     print("Review typically takes 24-48 hours.")
 else:
-    print(f"ERROR: status={status} {json.dumps(data)[:500]}")
+    print(f"Step 3 ERROR: status={status} {json.dumps(data)[:500]}")
     # Check if version is already in review
     status2, data2 = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appStoreVersions")
     if status2 == 200:
