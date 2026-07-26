@@ -253,6 +253,9 @@ if not (status == 200 and data.get("data")):
                     print(f"    Sample [{src}]: {pt['id']} attrs={json.dumps(pt.get('attributes',{}))[:200]}")
         errors.append(f"Price tier {price_tier}: could not find price point")
     else:
+        # ponytail: ASC API requires inline included entity IDs to be local IDs
+        # in the format ${local-id} — bare strings like "price-3-DEU" are rejected.
+        local_id = f"${{price-{price_tier}-DEU}}"
         try_post(conn, jwt, "/v1/appPriceSchedules", {
             "data": {
                 "type": "appPriceSchedules",
@@ -260,13 +263,13 @@ if not (status == 200 and data.get("data")):
                     "app": {"data": {"type": "apps", "id": app_id}},
                     "baseTerritory": {"data": {"type": "territories", "id": "DEU"}},
                     "manualPrices": {
-                        "data": [{"type": "appPrices", "id": f"price-{price_tier}-DEU"}]
+                        "data": [{"type": "appPrices", "id": local_id}]
                     }
                 }
             },
             "included": [{
                 "type": "appPrices",
-                "id": f"price-{price_tier}-DEU",
+                "id": local_id,
                 "attributes": {"startDate": None, "endDate": None},
                 "relationships": {
                     "appPricePoint": {"data": {"type": "appPricePoints", "id": tier_id}}
@@ -314,13 +317,44 @@ else:
         }
     }, "create review contact info")
 
-# --- 8. App Privacy — NOT available via API ---
-print("\n=== App Privacy ===")
-print("  NOTE: App Privacy (data collection declaration) is NOT available via the ASC API.")
-print("  This must be set manually in App Store Connect → App Privacy section.")
-print("  For this app: select 'Data Not Collected' (the app collects no data).")
-print("  Dennis needs to do this in the ASC web UI, or an Admin API key may be needed.")
-errors.append("App Privacy: must be set manually in ASC web UI")
+# --- 8. App Privacy — try API first, fall back to manual ---
+# ponytail: ASC API added appDataUsages endpoint — try to automate "Data Not Collected".
+# The app genuinely collects no data, so we set dataUsage = DATA_NOT_COLLECTED.
+print("\n=== App Privacy (appDataUsages) ===")
+# Check existing appDataUsages
+status, data = asc(conn, jwt, "GET", f"/v1/apps/{app_id}/appDataUsages")
+if status == 200 and data.get("data"):
+    print(f"  Existing appDataUsages found: {len(data['data'])} entries")
+    # Already configured — check if it's "Data Not Collected"
+    for item in data["data"]:
+        attrs = item.get("attributes", {})
+        purpose = attrs.get("dataUsage", "")
+        if purpose == "DATA_NOT_COLLECTED":
+            print(f"  Already set to DATA_NOT_COLLECTED — OK")
+            break
+    else:
+        print(f"  Existing entries but no DATA_NOT_COLLECTED — may need manual review")
+else:
+    # Try to create "Data Not Collected" declaration
+    ok, resp = try_post(conn, jwt, "/v1/appDataUsages", {
+        "data": {
+            "type": "appDataUsages",
+            "attributes": {
+                "dataUsage": "DATA_NOT_COLLECTED"
+            },
+            "relationships": {
+                "app": {
+                    "data": {"type": "apps", "id": app_id}
+                }
+            }
+        }
+    }, "App Privacy: DATA_NOT_COLLECTED")
+    if not ok:
+        print("  API call failed — Dennis must set this manually in ASC web UI.")
+        print("  ASC → App Privacy → 'Data Not Collected'")
+        errors.append("App Privacy: API call failed, must be set manually in ASC web UI")
+    else:
+        print("  App Privacy set to DATA_NOT_COLLECTED via API — OK")
 
 # --- 9. Summary ---
 print("\n=== Configuration Summary ===")
