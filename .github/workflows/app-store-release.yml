@@ -4,13 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action: configure (metadata+screenshots) or submit_review"
+        description: "Action: status (read-only), manual_release, configure (metadata+screenshots), or submit_review"
         required: true
         type: choice
-        default: "configure"
+        default: "status"
         options:
+          - status
+          - manual_release
           - configure
           - submit_review
+      expected_version:
+        description: "Required for release; must exactly equal the authorized App Store version (1.0)"
+        required: false
+        type: string
 
 jobs:
   release:
@@ -24,6 +30,37 @@ jobs:
 
       - name: Install dependencies
         run: pip install cryptography pillow
+
+      - name: Read targeted v1.0 / build 187 status (read-only)
+        id: status
+        if: ${{ github.event.inputs.action == 'status' || github.event.inputs.action == 'manual_release' }}
+        run: python3 scripts/release_app_store_version.py --check
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
+      - name: Confirm target v1.0 / build 187
+        if: ${{ (github.event.inputs.action == 'status' || github.event.inputs.action == 'manual_release') && steps.status.outputs.target_verified == 'true' }}
+        run: echo "Validated the exact App Store target without changing metadata, pricing, privacy, IAPs, or features."
+
+      - name: App Store state PENDING_DEVELOPER_RELEASE
+        if: ${{ (github.event.inputs.action == 'status' || github.event.inputs.action == 'manual_release') && steps.status.outputs.state == 'PENDING_DEVELOPER_RELEASE' }}
+        run: echo "Apple is awaiting the approved manual developer release."
+
+      - name: App Store state READY_FOR_SALE
+        if: ${{ (github.event.inputs.action == 'status' || github.event.inputs.action == 'manual_release') && steps.status.outputs.state == 'READY_FOR_SALE' }}
+        run: echo "Apple reports the target version ready for sale."
+
+      - name: Request guarded manual release and re-read status
+        id: release
+        if: ${{ github.event.inputs.action == 'manual_release' }}
+        run: python3 scripts/release_app_store_version.py --release --expected-version "$EXPECTED_VERSION"
+        env:
+          EXPECTED_VERSION: ${{ github.event.inputs.expected_version }}
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
       - name: Configure App Store metadata and upload screenshots
         if: ${{ github.event.inputs.action == 'configure' }}
