@@ -31,6 +31,8 @@ class ExpectedVersionValidationTests(unittest.TestCase):
         for app_store_state in (
             "READY_FOR_SALE",
             "PROCESSING_FOR_APP_STORE",
+            "PROCESSING_FOR_DISTRIBUTION",
+            "READY_FOR_DISTRIBUTION",
             "PENDING_APPLE_RELEASE",
         ):
             with self.subTest(app_store_state=app_store_state):
