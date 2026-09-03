@@ -179,6 +179,7 @@ def target_version(connection, jwt, target_version, target_build):
 def emit_status(status):
     for key in ("app_id", "version_id", "version", "state", "release_type", "build", "build_processing"):
         emit(key, status[key])
+    emit("appStoreState", status["state"])
     emit("target_verified", "true")
 
 

@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Unit tests for the guarded App Store release automation."""
 
+import io
+import os
 import sys
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 from release_app_store_version import (
     ReleaseSafetyError,
     decide_manual_release,
+    emit_status,
     release_request_payload,
     validate_expected_version,
 )
@@ -60,6 +65,26 @@ class ExpectedVersionValidationTests(unittest.TestCase):
                 }
             },
         )
+
+    def test_status_output_names_the_exact_app_store_state(self):
+        status = {
+            "app_id": "6787153621",
+            "version_id": "version-123",
+            "version": "1.0",
+            "state": "PENDING_DEVELOPER_RELEASE",
+            "release_type": "MANUAL",
+            "build": "187",
+            "build_processing": "VALID",
+        }
+        output = io.StringIO()
+
+        with patch.dict(os.environ, {}, clear=True), redirect_stdout(output):
+            emit_status(status)
+
+        lines = output.getvalue().splitlines()
+        self.assertIn("version=1.0", lines)
+        self.assertIn("build=187", lines)
+        self.assertIn("appStoreState=PENDING_DEVELOPER_RELEASE", lines)
 
 
 if __name__ == "__main__":
