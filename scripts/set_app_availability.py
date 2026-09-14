@@ -237,4 +237,23 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception:  # any unexpected error must still produce evidence
+        import traceback
+
+        os.makedirs("out", exist_ok=True)
+        previous = {}
+        try:
+            with open("out/asc-inspection.json", encoding="utf-8") as handle:
+                previous = json.load(handle)
+        except Exception:
+            pass
+        previous["result"] = "failed"
+        previous.setdefault("steps", {})["unexpected_error"] = traceback.format_exc()[-4000:]
+        with open("out/asc-inspection.json", "w", encoding="utf-8") as handle:
+            json.dump(previous, handle, indent=2, sort_keys=True)
+        print(traceback.format_exc())
+        raise SystemExit(1)
