@@ -106,8 +106,9 @@ def main():
         ("app_with_availability_include", f"/v1/apps/{APP_STORE_ID}?include=appAvailabilityV2"),
         ("app_relationships", f"/v1/apps/{APP_STORE_ID}/relationships/appAvailabilityV2"),
         ("availability_v2", f"/v1/apps/{APP_STORE_ID}/appAvailabilityV2"),
-        ("availability_v2_included",
-         f"/v1/apps/{APP_STORE_ID}/appAvailabilityV2?include=territoryAvailabilities&limit[territoryAvailabilities]=200"),
+        ("availability_v2_territories",
+         f"/v2/appAvailabilities/{APP_STORE_ID}/territoryAvailabilities?limit=200"),
+        ("app_infos", f"/v1/apps/{APP_STORE_ID}/appInfos"),
         ("availability_v2_resource", f"/v1/appAvailabilities/{APP_STORE_ID}"),
         ("price_schedule_manual", f"/v1/appPriceSchedules/{APP_STORE_ID}/manualPrices?limit=200"),
         ("price_schedule_automatic", f"/v1/appPriceSchedules/{APP_STORE_ID}/automaticPrices?limit=200"),
@@ -135,6 +136,23 @@ def main():
             ("version_release_request", f"/v1/appStoreVersions/{version_id}/appStoreVersionReleaseRequest"),
         ):
             probe(probe_key, path)
+
+    # Territory-level availability (App Store Connect API v2). The v1
+    # `include=territoryAvailabilities` form returns 400, so read the
+    # territories through the documented v2 resource path instead.
+    territory_body = (result["probes"].get("availability_v2_territories") or {}).get("body")
+    if isinstance(territory_body, dict) and territory_body.get("data"):
+        entries = territory_body["data"]
+        available_ids = [item.get("id") for item in entries
+                         if item.get("attributes", {}).get("available") is True]
+        blocked = [item.get("id") for item in entries
+                   if item.get("attributes", {}).get("available") is not True]
+        result["summary"]["territory_availability"] = {
+            "territory_count": len(entries),
+            "available_true": len(available_ids),
+            "not_available": len(blocked),
+            "not_available_ids": blocked[:40],
+        }
 
     # Territory coverage from the price schedule when Apple returns it.
     manual = (result["probes"].get("price_schedule_manual") or {}).get("body")
