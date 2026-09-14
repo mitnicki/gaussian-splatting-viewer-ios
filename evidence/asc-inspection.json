@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-09-14T16:34:09Z",
+  "listed_storefronts": [],
+  "mismatches": [],
+  "privacy_link_found": {},
+  "result": "not-listed",
+  "storefronts": {
+    "at": {
+      "lookup_http": 200,
+      "result_count": 0,
+      "store_page_http": 404
+    },
+    "ch": {
+      "lookup_http": 200,
+      "result_count": 0,
+      "store_page_http": 404
+    },
+    "de": {
+      "lookup_http": 200,
+      "result_count": 0,
+      "store_page_http": 404
+    },
+    "gb": {
+      "lookup_http": 200,
+      "result_count": 0,
+      "store_page_http": 404
+    },
+    "us": {
+      "lookup_http": 200,
+      "result_count": 0,
+      "store_page_http": 404
+    }
+  },
+  "target": {
+    "app_store_id": "6787153621",
+    "bundle_id": "cloud.dkroeker.GaussianSplattingViewer",
+    "expected": {
+      "name": "Gaussian Splatting Viewer",
+      "price_eur": 2.99,
+      "privacy_host": "blog.kroeker.cloud",
+      "seller": "Dennis Kroeker",
+      "version": "1.0"
+    }
+  }
+}
