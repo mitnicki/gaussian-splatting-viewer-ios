@@ -153,6 +153,104 @@ def main():
         ):
             probe(probe_key, path)
 
+    # --- Release-blocker disambiguation probes (read-only, additive) ---------
+    # Why can a version report READY_FOR_SALE / READY_FOR_DISTRIBUTION while no
+    # storefront lists the app? These probes separate the remaining causes:
+    #   (a) Apple never scheduled an automatic release (earliestReleaseDate),
+    #   (b) the app has no usable paid price (Agreements, Tax, Banking vs the
+    #       price schedule still being resolvable to a price point), and
+    #   (c) a build / review-submission problem still holding the release.
+    # Every call below is a GET. A failing probe is recorded, never raised.
+    release_blocker = {}
+    try:
+        _, versions = probe(
+            "app_store_versions_detailed",
+            f"/v1/apps/{APP_STORE_ID}/appStoreVersions?limit=50"
+            "&fields[appStoreVersions]=versionString,appStoreState,appVersionState,"
+            "releaseType,earliestReleaseDate,createdDate,downloadable&include=build")
+        if isinstance(versions, dict) and versions.get("data"):
+            build_states = {}
+            for item in versions.get("included") or []:
+                if item.get("type") == "builds":
+                    attributes = item.get("attributes", {})
+                    build_states[item.get("id")] = {
+                        "version": attributes.get("version"),
+                        "processingState": attributes.get("processingState"),
+                        "expired": attributes.get("expired"),
+                        "uploadedDate": attributes.get("uploadedDate"),
+                    }
+            release_blocker["versions"] = [
+                {
+                    "versionString": item["attributes"].get("versionString"),
+                    "appStoreState": item["attributes"].get("appStoreState"),
+                    "appVersionState": item["attributes"].get("appVersionState"),
+                    "releaseType": item["attributes"].get("releaseType"),
+                    "earliestReleaseDate": item["attributes"].get("earliestReleaseDate"),
+                    "createdDate": item["attributes"].get("createdDate"),
+                    "downloadable": item["attributes"].get("downloadable"),
+                    "buildId": (((item.get("relationships") or {}).get("build") or {})
+                                .get("data") or {}).get("id"),
+                }
+                for item in versions["data"]
+            ]
+            release_blocker["build_states"] = build_states
+    except Exception as exc:  # noqa: BLE001 - evidence must never crash the step
+        release_blocker["versions_error"] = f"{exc.__class__.__name__}: {exc}"
+
+    try:
+        prices = {}
+        for price_key, price_path in (
+            ("manual", f"/v1/appPriceSchedules/{APP_STORE_ID}/manualPrices?limit=200"),
+            ("automatic", f"/v1/appPriceSchedules/{APP_STORE_ID}/automaticPrices?limit=200"),
+        ):
+            price_http, price_body = asc_get_raw(connection, jwt, price_path)
+            price_ids = []
+            if isinstance(price_body, dict):
+                price_ids = [entry.get("id") for entry in (price_body.get("data") or [])
+                             if entry.get("id")]
+            entry = {"http": price_http, "count": len(price_ids),
+                     "sample_ids": price_ids[:3], "resolved": []}
+            for price_id in price_ids[:3]:
+                detail_http, detail = asc_get(
+                    connection, jwt,
+                    f"/v2/appPrices/{urllib.parse.quote(str(price_id), safe='')}"
+                    "?include=appPricePoint,territory")
+                resolved = {"id": price_id, "http": detail_http}
+                if isinstance(detail, dict):
+                    for included in detail.get("included") or []:
+                        attributes = included.get("attributes", {})
+                        if included.get("type") == "appPricePoints":
+                            resolved["customerPrice"] = attributes.get("customerPrice")
+                            resolved["proceeds"] = attributes.get("proceeds")
+                            resolved["currency"] = attributes.get("currency")
+                        elif included.get("type") == "territories":
+                            resolved["territory"] = attributes.get("id") or included.get("id")
+                    if isinstance(detail.get("errors"), list) and detail["errors"]:
+                        resolved["error"] = detail["errors"][0].get("code")
+                entry["resolved"].append(resolved)
+            prices[price_key] = entry
+        release_blocker["price_schedule"] = prices
+    except Exception as exc:  # noqa: BLE001
+        release_blocker["price_error"] = f"{exc.__class__.__name__}: {exc}"
+
+    try:
+        submission_http, submissions = probe(
+            "review_submissions",
+            f"/v1/reviewSubmissions?filter[app]={APP_STORE_ID}&limit=10")
+        if isinstance(submissions, dict):
+            release_blocker["review_submissions"] = [
+                {
+                    "state": item.get("attributes", {}).get("state"),
+                    "submittedDate": item.get("attributes", {}).get("submittedDate"),
+                }
+                for item in (submissions.get("data") or [])
+            ]
+            release_blocker["review_submissions_http"] = submission_http
+    except Exception as exc:  # noqa: BLE001
+        release_blocker["review_submissions_error"] = f"{exc.__class__.__name__}: {exc}"
+
+    result["summary"]["release_blocker"] = release_blocker
+
     # Territory-level availability (App Store Connect API v2). The v1
     # `include=territoryAvailabilities` form returns 400, and the full v2
     # response is far too large for the evidence file, so fetch it raw and
