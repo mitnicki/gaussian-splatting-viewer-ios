@@ -39,7 +39,6 @@ jobs:
 
       - name: Enable App Availability for the approved v1.0 release
         id: enable_availability
-        continue-on-error: true
         if: ${{ github.event.inputs.action == 'enable_availability' }}
         run: python3 scripts/set_app_availability.py --confirm enable-availability
         env:
