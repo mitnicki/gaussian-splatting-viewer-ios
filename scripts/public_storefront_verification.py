@@ -27,6 +27,10 @@ import urllib.error
 import urllib.request
 
 APP_STORE_ID = "6787153621"
+# Optional override so the same read-only path can be validated against a known
+# control app (control runs are expected to report mismatches — they prove that
+# the lookup, store-page and mismatch detection actually work).
+TARGET_APP_STORE_ID = os.environ.get("VERIFY_APP_STORE_ID", APP_STORE_ID).strip() or APP_STORE_ID
 APP_BUNDLE_ID = "cloud.dkroeker.GaussianSplattingViewer"
 EXPECTED_NAME = "Gaussian Splatting Viewer"
 EXPECTED_VERSION = "1.0"
@@ -66,7 +70,7 @@ def fetch(url, timeout=30):
 
 def lookup(country):
     status, raw = fetch(
-        f"https://itunes.apple.com/lookup?id={APP_STORE_ID}&country={country}&entity=software")
+        f"https://itunes.apple.com/lookup?id={TARGET_APP_STORE_ID}&country={country}&entity=software")
     entry = None
     try:
         payload = json.loads(raw)
@@ -88,7 +92,7 @@ def summarize(entry):
 def main():
     result = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "target": {"app_store_id": APP_STORE_ID, "bundle_id": APP_BUNDLE_ID,
+        "target": {"app_store_id": TARGET_APP_STORE_ID, "bundle_id": APP_BUNDLE_ID,
                    "expected": {"name": EXPECTED_NAME, "version": EXPECTED_VERSION,
                                 "seller": EXPECTED_SELLER, "price_eur": 2.99,
                                 "privacy_host": EXPECTED_PRIVACY_HOST}},
@@ -135,7 +139,7 @@ def main():
                     result["mismatches"].append(f"{country}: privacy policy link missing")
                 store["html_bytes"] = len(html)
         else:
-            page_status, _ = fetch(f"https://apps.apple.com/{country}/app/id{APP_STORE_ID}")
+            page_status, _ = fetch(f"https://apps.apple.com/{country}/app/id{TARGET_APP_STORE_ID}")
             store["store_page_http"] = page_status
         result["storefronts"][country] = store
 

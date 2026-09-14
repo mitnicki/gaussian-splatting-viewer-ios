@@ -3,6 +3,11 @@ name: App Store Release
 on:
   workflow_dispatch:
     inputs:
+      app_id:
+        description: "Optional App Store ID override (verify_listing only); used to validate the pipeline against a known control app"
+        required: false
+        type: string
+        default: ""
       action:
         description: "Action: inspect (read-only), verify_listing (public storefront, read-only), enable_availability (guarded, idempotent), configure (metadata+screenshots) or submit_review"
         required: true
@@ -41,6 +46,8 @@ jobs:
       - name: Public storefront listing verification (no App Store Connect credentials needed)
         if: ${{ github.event.inputs.action == 'verify_listing' }}
         run: python3 scripts/public_storefront_verification.py
+        env:
+          VERIFY_APP_STORE_ID: ${{ github.event.inputs.app_id }}
 
       - name: Enable App Availability for the approved v1.0 release
         id: enable_availability
