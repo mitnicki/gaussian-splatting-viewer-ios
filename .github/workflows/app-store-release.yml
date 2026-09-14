@@ -38,6 +38,8 @@ jobs:
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
       - name: Enable App Availability for the approved v1.0 release
+        id: enable_availability
+        continue-on-error: true
         if: ${{ github.event.inputs.action == 'enable_availability' }}
         run: python3 scripts/set_app_availability.py --confirm enable-availability
         env:
@@ -46,16 +48,19 @@ jobs:
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
       - name: Publish evidence on a dedicated branch
-        if: ${{ contains(fromJSON('["inspect","enable_availability"]'), github.event.inputs.action) }}
+        if: ${{ always() && contains(fromJSON('["inspect","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "asc-evidence-${GITHUB_RUN_ID}"
           mkdir -p evidence
+          if [ ! -f out/asc-inspection.json ]; then
+            printf '{"result":"failed","error":"no evidence file was produced by the action step"}\n' > out/asc-inspection.json
+          fi
           cp out/asc-inspection.json evidence/asc-inspection.json
           git add evidence/asc-inspection.json
-          git commit -m "evidence: ${GITHUB_EVENT_INPUTS_ACTION:-asc} run ${GITHUB_RUN_ID}"
+          git commit -m "evidence: action=${{ github.event.inputs.action }} run ${GITHUB_RUN_ID}"
           git push --set-upstream origin "asc-evidence-${GITHUB_RUN_ID}"
 
       - name: Configure App Store metadata and upload screenshots
