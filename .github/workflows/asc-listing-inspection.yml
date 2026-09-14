@@ -1,0 +1,48 @@
+name: ASC Read-Only Inspection
+
+# Read-only diagnostic workflow. It performs GET requests against App Store
+# Connect and the public App Store storefronts only. It does not configure
+# metadata, pricing, IAPs, privacy, screenshots, submissions or releases.
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Reason for this read-only inspection"
+        required: false
+        default: "DKR-7041 public availability verification"
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install cryptography
+
+      - name: Read-only ASC and public storefront inspection
+        run: python3 scripts/asc_readonly_inspection.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
+      - name: Publish evidence on a dedicated branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "asc-evidence-${GITHUB_RUN_ID}"
+          mkdir -p evidence
+          cp out/asc-inspection.json evidence/asc-inspection.json
+          git add evidence/asc-inspection.json
+          git commit -m "evidence: read-only ASC inspection (${GITHUB_RUN_ID})"
+          git push --set-upstream origin "asc-evidence-${GITHUB_RUN_ID}"
