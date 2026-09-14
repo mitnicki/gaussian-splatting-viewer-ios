@@ -1,0 +1,84 @@
+{
+  "generated_at": "2026-09-14T16:28:01Z",
+  "public_after": {
+    "lookup_id_de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_us": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "store_page_de": {
+      "http": 404
+    },
+    "store_page_gb": {
+      "http": 404
+    },
+    "store_page_us": {
+      "http": 404
+    }
+  },
+  "public_before": {
+    "lookup_id_de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_us": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "store_page_de": {
+      "http": 404
+    },
+    "store_page_gb": {
+      "http": 404
+    },
+    "store_page_us": {
+      "http": 404
+    }
+  },
+  "result": "noop-availability-already-set",
+  "steps": {
+    "app_id": "6787153621",
+    "availability_before": {
+      "body": {
+        "data": {
+          "attributes": {
+            "availableInNewTerritories": true
+          },
+          "id": "6787153621",
+          "links": {
+            "self": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621"
+          },
+          "relationships": {
+            "territoryAvailabilities": {
+              "links": {
+                "related": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621/territoryAvailabilities",
+                "self": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621/relationships/territoryAvailabilities"
+              }
+            }
+          },
+          "type": "appAvailabilities"
+        },
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/apps/6787153621/appAvailabilityV2"
+        }
+      },
+      "http": 200
+    },
+    "available_territories_after": 175
+  },
+  "target": {
+    "app_store_id": "6787153621",
+    "bundle_id": "cloud.dkroeker.GaussianSplattingViewer"
+  }
+}
