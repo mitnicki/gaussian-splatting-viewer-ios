@@ -4,17 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action: configure (metadata+screenshots) or submit_review"
+        description: "Action: inspect (read-only diagnostics), configure (metadata+screenshots) or submit_review"
         required: true
         type: choice
-        default: "configure"
+        default: "inspect"
         options:
+          - inspect
           - configure
           - submit_review
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +27,27 @@ jobs:
 
       - name: Install dependencies
         run: pip install cryptography pillow
+
+      - name: Read-only ASC and public storefront inspection
+        if: ${{ github.event.inputs.action == 'inspect' }}
+        run: python3 scripts/asc_readonly_inspection.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
+      - name: Publish inspection evidence on a dedicated branch
+        if: ${{ github.event.inputs.action == 'inspect' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "asc-evidence-${GITHUB_RUN_ID}"
+          mkdir -p evidence
+          cp out/asc-inspection.json evidence/asc-inspection.json
+          git add evidence/asc-inspection.json
+          git commit -m "evidence: read-only ASC inspection (${GITHUB_RUN_ID})"
+          git push --set-upstream origin "asc-evidence-${GITHUB_RUN_ID}"
 
       - name: Configure App Store metadata and upload screenshots
         if: ${{ github.event.inputs.action == 'configure' }}
