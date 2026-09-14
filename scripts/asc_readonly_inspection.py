@@ -122,6 +122,7 @@ def main():
         ("app_relationships", f"/v1/apps/{APP_STORE_ID}/relationships/appAvailabilityV2"),
         ("availability_v2", f"/v1/apps/{APP_STORE_ID}/appAvailabilityV2"),
         ("app_infos", f"/v1/apps/{APP_STORE_ID}/appInfos"),
+        ("app_attributes", f"/v1/apps/{APP_STORE_ID}"),
         ("availability_v2_resource", f"/v1/appAvailabilities/{APP_STORE_ID}"),
         ("price_schedule_manual", f"/v1/appPriceSchedules/{APP_STORE_ID}/manualPrices?limit=200"),
         ("price_schedule_automatic", f"/v1/appPriceSchedules/{APP_STORE_ID}/automaticPrices?limit=200"),
@@ -147,6 +148,8 @@ def main():
              f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations?limit=50"),
             ("version_submission", f"/v1/appStoreVersions/{version_id}/appStoreVersionSubmission"),
             ("version_release_request", f"/v1/appStoreVersions/{version_id}/appStoreVersionReleaseRequest"),
+            ("version_phased_release",
+             f"/v1/appStoreVersions/{version_id}/appStoreVersionPhasedRelease"),
         ):
             probe(probe_key, path)
 
