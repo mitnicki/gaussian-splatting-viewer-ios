@@ -1,0 +1,6 @@
+{
+  "result": "failed",
+  "steps": {
+    "unexpected_error": "Traceback (most recent call last):\n  File \"/home/runner/work/gaussian-splatting-viewer-ios/gaussian-splatting-viewer-ios/scripts/set_app_availability.py\", line 241, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/home/runner/work/gaussian-splatting-viewer-ios/gaussian-splatting-viewer-ios/scripts/set_app_availability.py\", line 186, in main\n    status, territories_body = asc.get_all(\"/v1/territories?limit=200\")\n    ^^^^^^^^^^^^^^^^^^^^^^^^\nValueError: too many values to unpack (expected 2)\n"
+  }
+}
