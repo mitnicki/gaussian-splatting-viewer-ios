@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-09-14T15:04:24Z",
+  "public_after": {
+    "lookup_id_de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_us": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "store_page_de": {
+      "http": 404
+    },
+    "store_page_gb": {
+      "http": 404
+    },
+    "store_page_us": {
+      "http": 404
+    }
+  },
+  "public_before": {
+    "lookup_id_de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_us": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "store_page_de": {
+      "http": 404
+    },
+    "store_page_gb": {
+      "http": 404
+    },
+    "store_page_us": {
+      "http": 404
+    }
+  },
+  "result": "availability-created",
+  "steps": {
+    "app_id": "6787153621",
+    "availability_after": {
+      "attributes": {
+        "availableInNewTerritories": true
+      },
+      "http": 200
+    },
+    "availability_before": {
+      "body": {
+        "errors": [
+          {
+            "code": "NOT_FOUND",
+            "detail": "There is no resource of type 'appAvailabilities' with id '6787153621'",
+            "id": "7f887cc7-1710-4e95-be88-694e1fc24f27",
+            "status": "404",
+            "title": "The specified resource does not exist"
+          }
+        ]
+      },
+      "http": 404
+    },
+    "availability_create": {
+      "body": "ok",
+      "http": 201
+    },
+    "available_territories_after": 175,
+    "territory_count_from_catalog": 175
+  },
+  "target": {
+    "app_store_id": "6787153621",
+    "bundle_id": "cloud.dkroeker.GaussianSplattingViewer"
+  }
+}
