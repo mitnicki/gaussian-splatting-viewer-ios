@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action: inspect (read-only diagnostics), configure (metadata+screenshots) or submit_review"
+        description: "Action: inspect (read-only), enable_availability (guarded, idempotent), configure (metadata+screenshots) or submit_review"
         required: true
         type: choice
         default: "inspect"
         options:
           - inspect
+          - enable_availability
           - configure
           - submit_review
 
@@ -36,8 +37,16 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
-      - name: Publish inspection evidence on a dedicated branch
-        if: ${{ github.event.inputs.action == 'inspect' }}
+      - name: Enable App Availability for the approved v1.0 release
+        if: ${{ github.event.inputs.action == 'enable_availability' }}
+        run: python3 scripts/set_app_availability.py --confirm enable-availability
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
+      - name: Publish evidence on a dedicated branch
+        if: ${{ contains(fromJSON('["inspect","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -46,7 +55,7 @@ jobs:
           mkdir -p evidence
           cp out/asc-inspection.json evidence/asc-inspection.json
           git add evidence/asc-inspection.json
-          git commit -m "evidence: read-only ASC inspection (${GITHUB_RUN_ID})"
+          git commit -m "evidence: ${GITHUB_EVENT_INPUTS_ACTION:-asc} run ${GITHUB_RUN_ID}"
           git push --set-upstream origin "asc-evidence-${GITHUB_RUN_ID}"
 
       - name: Configure App Store metadata and upload screenshots
