@@ -183,7 +183,7 @@ def main():
     if status != 404:
         fail(result, f"unexpected availability read HTTP {status}")
 
-    status, territories_body = asc.get_all("/v1/territories?limit=200")
+    status, territories_body, _ = asc.get_all("/v1/territories?limit=200")
     territory_codes = sorted(item["id"] for item in territories_body if item.get("id"))
     result["steps"]["territory_count_from_catalog"] = len(territory_codes)
     if len(territory_codes) < 50:
