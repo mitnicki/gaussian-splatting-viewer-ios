@@ -61,6 +61,21 @@ def asc_get(connection, jwt, path):
     return status, body
 
 
+def asc_get_raw(connection, jwt, path):
+    """Like asc_get, but keeps large JSON bodies intact for local aggregation."""
+    try:
+        connection.request("GET", path, headers={"Authorization": f"Bearer {jwt}"})
+        response = connection.getresponse()
+        raw = response.read().decode("utf-8", "replace")
+        status = response.status
+    except Exception as exc:
+        return 0, {"transport_error": f"{exc.__class__.__name__}: {exc}"}
+    try:
+        return status, json.loads(raw)
+    except ValueError:
+        return status, {"unparsed": raw[:BODY_LIMIT]}
+
+
 def public_fetch(url, timeout=30):
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     try:
@@ -106,8 +121,6 @@ def main():
         ("app_with_availability_include", f"/v1/apps/{APP_STORE_ID}?include=appAvailabilityV2"),
         ("app_relationships", f"/v1/apps/{APP_STORE_ID}/relationships/appAvailabilityV2"),
         ("availability_v2", f"/v1/apps/{APP_STORE_ID}/appAvailabilityV2"),
-        ("availability_v2_territories",
-         f"/v2/appAvailabilities/{APP_STORE_ID}/territoryAvailabilities?limit=200"),
         ("app_infos", f"/v1/apps/{APP_STORE_ID}/appInfos"),
         ("availability_v2_resource", f"/v1/appAvailabilities/{APP_STORE_ID}"),
         ("price_schedule_manual", f"/v1/appPriceSchedules/{APP_STORE_ID}/manualPrices?limit=200"),
@@ -138,20 +151,46 @@ def main():
             probe(probe_key, path)
 
     # Territory-level availability (App Store Connect API v2). The v1
-    # `include=territoryAvailabilities` form returns 400, so read the
-    # territories through the documented v2 resource path instead.
-    territory_body = (result["probes"].get("availability_v2_territories") or {}).get("body")
-    if isinstance(territory_body, dict) and territory_body.get("data"):
-        entries = territory_body["data"]
-        available_ids = [item.get("id") for item in entries
-                         if item.get("attributes", {}).get("available") is True]
-        blocked = [item.get("id") for item in entries
-                   if item.get("attributes", {}).get("available") is not True]
+    # `include=territoryAvailabilities` form returns 400, and the full v2
+    # response is far too large for the evidence file, so fetch it raw and
+    # store an aggregate: per-contentStatus territory counts, which is what
+    # explains a `READY_FOR_SALE` version that no storefront lists.
+    territory_http, territory = asc_get_raw(
+        connection, jwt,
+        f"/v2/appAvailabilities/{APP_STORE_ID}/territoryAvailabilities"
+        f"?limit=200&include=territory")
+    if isinstance(territory, dict) and territory.get("data"):
+        status_territories = {}
+        available_true = 0
+        not_available = []
+        for item in territory["data"]:
+            attributes = item.get("attributes", {})
+            relation = (item.get("relationships") or {}).get("territory") or {}
+            territory_id = ((relation.get("data") or {}).get("id")
+                            or item.get("id"))
+            if attributes.get("available") is True:
+                available_true += 1
+            else:
+                not_available.append(territory_id)
+            for code in attributes.get("contentStatuses") or []:
+                status_territories.setdefault(code, []).append(territory_id)
         result["summary"]["territory_availability"] = {
-            "territory_count": len(entries),
-            "available_true": len(available_ids),
-            "not_available": len(blocked),
-            "not_available_ids": blocked[:40],
+            "http": territory_http,
+            "territory_count": len(territory["data"]),
+            "available_true": available_true,
+            "not_available": not_available[:60],
+            "content_status_counts": {code: len(ids)
+                                      for code, ids in sorted(status_territories.items())},
+            "content_status_territories": {
+                code: sorted(ids)[:120] for code, ids in sorted(status_territories.items())},
+            "release_dates": sorted({
+                str(item.get("attributes", {}).get("releaseDate"))
+                for item in territory["data"]}),
+        }
+    else:
+        result["summary"]["territory_availability"] = {
+            "http": territory_http,
+            "error": str(territory)[:400],
         }
 
     # Territory coverage from the price schedule when Apple returns it.
