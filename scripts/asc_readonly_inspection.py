@@ -240,12 +240,49 @@ def main():
         if isinstance(submissions, dict):
             release_blocker["review_submissions"] = [
                 {
+                    "id": item.get("id"),
                     "state": item.get("attributes", {}).get("state"),
                     "submittedDate": item.get("attributes", {}).get("submittedDate"),
                 }
                 for item in (submissions.get("data") or [])
             ]
             release_blocker["review_submissions_http"] = submission_http
+
+            # Which versions are entangled in which submission? A version that
+            # is still referenced by a non-terminal (draft) review submission is
+            # a credible reason Apple's automatic release never fires.
+            submission_items = []
+            for item in submissions.get("data") or []:
+                submission_id = item.get("id")
+                entry = {
+                    "submissionId": submission_id,
+                    "submissionState": item.get("attributes", {}).get("state"),
+                    "items": [],
+                }
+                try:
+                    items_http, items_body = asc_get(
+                        connection, jwt,
+                        f"/v1/reviewSubmissions/{submission_id}/items?limit=50"
+                        "&fields[reviewSubmissionItems]=state&include=appStoreVersion")
+                    entry["items_http"] = items_http
+                    included_versions = {}
+                    if isinstance(items_body, dict):
+                        for included in items_body.get("included") or []:
+                            included_versions[included.get("id")] = (
+                                included.get("attributes", {}).get("versionString"))
+                        for item_entry in items_body.get("data") or []:
+                            relationships = item_entry.get("relationships") or {}
+                            version_ref = ((relationships.get("appStoreVersion") or {})
+                                           .get("data") or {}).get("id")
+                            entry["items"].append({
+                                "state": item_entry.get("attributes", {}).get("state"),
+                                "versionId": version_ref,
+                                "versionString": included_versions.get(version_ref),
+                            })
+                except Exception as exc:  # noqa: BLE001
+                    entry["items_error"] = f"{exc.__class__.__name__}: {exc}"
+                submission_items.append(entry)
+            release_blocker["review_submission_items"] = submission_items
     except Exception as exc:  # noqa: BLE001
         release_blocker["review_submissions_error"] = f"{exc.__class__.__name__}: {exc}"
 
