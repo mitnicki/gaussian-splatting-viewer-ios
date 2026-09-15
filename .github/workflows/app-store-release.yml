@@ -15,6 +15,7 @@ on:
         default: "inspect"
         options:
           - inspect
+          - deep_diagnosis
           - verify_listing
           - enable_availability
           - configure
@@ -58,8 +59,16 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
+      - name: Deep read-only diagnosis (app-level metadata, export compliance, experiments, price, territories, public storefront)
+        if: ${{ github.event.inputs.action == 'deep_diagnosis' }}
+        run: python3 scripts/asc_deep_diagnosis.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
       - name: Publish evidence on a dedicated branch
-        if: ${{ always() && contains(fromJSON('["inspect","verify_listing","enable_availability"]'), github.event.inputs.action) }}
+        if: ${{ always() && contains(fromJSON('["inspect","deep_diagnosis","verify_listing","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
