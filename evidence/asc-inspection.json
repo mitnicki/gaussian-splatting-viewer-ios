@@ -1,0 +1,110 @@
+{
+  "generated_at": "2026-09-15T07:39:47Z",
+  "kind": "request_release",
+  "public": {
+    "at": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "us": {
+      "http": 200,
+      "resultCount": 0
+    }
+  },
+  "release_requested": false,
+  "steps": [
+    {
+      "detail": {
+        "state": {
+          "appStoreState": "READY_FOR_SALE",
+          "appVersionState": "READY_FOR_DISTRIBUTION",
+          "downloadable": true,
+          "earliestReleaseDate": null,
+          "releaseDate": null,
+          "releaseType": "AFTER_APPROVAL"
+        },
+        "version_id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120"
+      },
+      "http": 200,
+      "step": "read_version_before"
+    },
+    {
+      "detail": {
+        "data_id": null,
+        "errors": [
+          {
+            "code": "ENTITY_ERROR.RELATIONSHIP.INVALID.INVALID_STATE",
+            "detail": "You cannot send the latest version of the App live in the current state.",
+            "title": "A relationship value is not acceptable for the current resource state."
+          }
+        ],
+        "http": 409
+      },
+      "http": 409,
+      "step": "release_request_attempt_1"
+    },
+    {
+      "detail": {
+        "errors": [
+          {
+            "code": "ENTITY_ERROR.ATTRIBUTE.INVALID.INVALID_STATE",
+            "detail": "The attribute 'releaseType' can not be modified.",
+            "title": "An attribute value is not acceptable for the current resource state."
+          }
+        ]
+      },
+      "http": 409,
+      "step": "patch_release_type_manual"
+    },
+    {
+      "detail": {
+        "appStoreState": "READY_FOR_SALE",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "downloadable": true,
+        "earliestReleaseDate": null,
+        "releaseDate": null,
+        "releaseType": "AFTER_APPROVAL"
+      },
+      "http": 200,
+      "step": "read_version_after_patch"
+    },
+    {
+      "detail": {
+        "data_id": null,
+        "errors": [
+          {
+            "code": "ENTITY_ERROR.RELATIONSHIP.INVALID.INVALID_STATE",
+            "detail": "You cannot send the latest version of the App live in the current state.",
+            "title": "A relationship value is not acceptable for the current resource state."
+          }
+        ]
+      },
+      "http": 409,
+      "step": "release_request_attempt_2"
+    },
+    {
+      "detail": {
+        "appStoreState": "READY_FOR_SALE",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "downloadable": true,
+        "earliestReleaseDate": null,
+        "releaseDate": null,
+        "releaseType": "AFTER_APPROVAL"
+      },
+      "http": 200,
+      "step": "read_version_after"
+    }
+  ],
+  "territory_after": {
+    "errors": [],
+    "http": 200
+  }
+}
