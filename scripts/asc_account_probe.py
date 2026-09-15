@@ -19,6 +19,7 @@ import urllib.request
 APP_STORE_ID = "6787153621"
 TARGET_VERSION = "1.0"
 CONTROL_APP_ID = "310633997"
+BODY_LIMIT = 12000
 
 
 def make_jwt(key_id, issuer_id, key_content):
@@ -192,9 +193,16 @@ def main():
     print(json.dumps(result["summary"], indent=2, sort_keys=True))
     return 0
 
-
 if __name__ == "__main__":
-    raise SystemExit(main())
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    import traceback
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except BaseException:
+        os.makedirs("out", exist_ok=True)
+        detail = traceback.format_exc()
+        with open("out/asc-inspection.json", "w", encoding="utf-8") as handle:
+            json.dump({"action": "account_probe", "fatal_exception": detail},
+                      handle, indent=2, sort_keys=True)
+        raise SystemExit(1)
