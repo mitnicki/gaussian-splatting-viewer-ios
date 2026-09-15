@@ -190,7 +190,7 @@ def main():
     _, versions = get("app_store_versions_experiments_src",
                       f"/v1/apps/{APP_STORE_ID}/appStoreVersions?limit=50"
                       "&fields[appStoreVersions]=versionString,appStoreState,appVersionState,"
-                      "releaseType,earliestReleaseDate,releaseDate,downloadable,createdDate"
+                      "releaseType,earliestReleaseDate,downloadable,createdDate"
                       "&include=build")
     if isinstance(versions, dict):
         for item in versions.get("data") or []:

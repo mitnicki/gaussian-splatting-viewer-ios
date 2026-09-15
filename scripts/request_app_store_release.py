@@ -132,7 +132,7 @@ def main():
             connection, jwt, "GET",
             f"/v1/apps/{APP_STORE_ID}/appStoreVersions?limit=50"
             "&fields[appStoreVersions]=versionString,appStoreState,appVersionState,"
-            "releaseType,earliestReleaseDate,releaseDate,downloadable,createdDate&include=build")
+            "releaseType,earliestReleaseDate,downloadable,createdDate&include=build")
         if isinstance(body, dict):
             for item in body.get("data") or []:
                 if str(item.get("attributes", {}).get("versionString")) == TARGET_VERSION:
