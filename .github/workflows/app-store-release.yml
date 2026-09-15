@@ -15,6 +15,7 @@ on:
         default: "inspect"
         options:
           - inspect
+          - account_probe
           - verify_listing
           - enable_availability
           - configure
@@ -43,6 +44,14 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
+      - name: Read-only account scope probe (all apps, GET only)
+        if: ${{ github.event.inputs.action == 'account_probe' }}
+        run: python3 scripts/asc_account_probe.py
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
       - name: Public storefront listing verification (no App Store Connect credentials needed)
         if: ${{ github.event.inputs.action == 'verify_listing' }}
         run: python3 scripts/public_storefront_verification.py
@@ -59,7 +68,7 @@ jobs:
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
       - name: Publish evidence on a dedicated branch
-        if: ${{ always() && contains(fromJSON('["inspect","verify_listing","enable_availability"]'), github.event.inputs.action) }}
+        if: ${{ always() && contains(fromJSON('["inspect","account_probe","verify_listing","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
