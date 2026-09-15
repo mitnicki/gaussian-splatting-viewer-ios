@@ -17,6 +17,7 @@ on:
           - inspect
           - deep_diagnosis
           - verify_listing
+          - request_release
           - enable_availability
           - configure
           - submit_review
@@ -67,8 +68,17 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
+      - name: "Request the approved v1.0 release (guarded, version state re-read, no metadata/price/privacy change)"
+        if: ${{ github.event.inputs.action == 'request_release' }}
+        run: python3 scripts/request_app_store_release.py
+        env:
+          CONFIRM_TOKEN: request-approved-release
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
       - name: Publish evidence on a dedicated branch
-        if: ${{ always() && contains(fromJSON('["inspect","deep_diagnosis","verify_listing","enable_availability"]'), github.event.inputs.action) }}
+        if: ${{ always() && contains(fromJSON('["inspect","deep_diagnosis","verify_listing","request_release","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

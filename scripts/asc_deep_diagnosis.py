@@ -190,29 +190,33 @@ def main():
     _, versions = get("app_store_versions_experiments_src",
                       f"/v1/apps/{APP_STORE_ID}/appStoreVersions?limit=50"
                       "&fields[appStoreVersions]=versionString,appStoreState,appVersionState,"
-                      "releaseType,earliestReleaseDate,releaseDate,downloadable,createdDate,build")
+                      "releaseType,earliestReleaseDate,releaseDate,downloadable,createdDate"
+                      "&include=build")
     if isinstance(versions, dict):
         for item in versions.get("data") or []:
             if str(item.get("attributes", {}).get("versionString")) == TARGET_VERSION:
                 version_id = item.get("id")
     findings["target_version_id"] = version_id
     experiments = {}
+    experiment_paths = [("app_experiments_v1",
+                         f"/v1/apps/{APP_STORE_ID}/appStoreVersionExperiments?limit=50")]
     if version_id:
-        for key, path in (
+        experiment_paths += [
             ("version_experiments_v1",
              f"/v1/appStoreVersions/{version_id}/appStoreVersionExperiments?limit=50"),
             ("version_experiments_v2",
              f"/v2/appStoreVersions/{version_id}/appStoreVersionExperiments?limit=50"),
-        ):
-            status, body = get(key, path)
-            experiments[key] = {
-                "http": status,
-                "count": len(body.get("data") or []) if isinstance(body, dict) else None,
-                "states": [i.get("attributes", {}).get("state")
-                           for i in (body.get("data") or [])] if isinstance(body, dict) else None,
-                "error": (body.get("errors") or [{}])[0].get("code")
-                if isinstance(body, dict) and body.get("errors") else None,
-            }
+        ]
+    for key, path in experiment_paths:
+        status, body = get(key, path)
+        experiments[key] = {
+            "http": status,
+            "count": len(body.get("data") or []) if isinstance(body, dict) else None,
+            "states": [i.get("attributes", {}).get("state")
+                       for i in (body.get("data") or [])] if isinstance(body, dict) else None,
+            "error": (body.get("errors") or [{}])[0].get("code")
+            if isinstance(body, dict) and body.get("errors") else None,
+        }
     findings["version_experiments"] = experiments
 
     # --- 4. price schedule: base territory + manual price window ----------
