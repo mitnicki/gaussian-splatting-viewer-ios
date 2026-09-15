@@ -1,0 +1,25 @@
+{
+  "fatal": "target version 1.0 not found",
+  "generated_at": "2026-09-15T07:38:38Z",
+  "kind": "request_release",
+  "public": {},
+  "steps": [
+    {
+      "detail": {
+        "state": {
+          "errors": [
+            {
+              "code": "PARAMETER_ERROR.INVALID",
+              "detail": "'releaseDate' is not a valid field name",
+              "title": "A parameter has an invalid value"
+            }
+          ],
+          "http": 400
+        },
+        "version_id": null
+      },
+      "http": 0,
+      "step": "read_version_before"
+    }
+  ]
+}
