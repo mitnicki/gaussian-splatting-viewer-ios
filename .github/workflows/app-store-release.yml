@@ -74,7 +74,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "asc-evidence-${GITHUB_RUN_ID}"
-          mkdir -p evidence
+          mkdir -p evidence out
           if [ ! -f out/asc-inspection.json ]; then
             printf '{"result":"failed","error":"no evidence file was produced by the action step"}\n' > out/asc-inspection.json
           fi
