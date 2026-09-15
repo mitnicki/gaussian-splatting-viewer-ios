@@ -1,0 +1,170 @@
+{
+  "account_apps": [
+    {
+      "availability": {
+        "availableInNewTerritories": true
+      },
+      "bundleId": "cloud.dkroeker.GaussianSplattingViewer",
+      "id": "6787153621",
+      "is_target": true,
+      "name": "Gaussian Splatting Viewer",
+      "primaryLocale": "de-DE",
+      "public": {
+        "de": {
+          "http": 200,
+          "resultCount": 0,
+          "results": []
+        },
+        "us": {
+          "http": 200,
+          "resultCount": 0,
+          "results": []
+        }
+      },
+      "sku": "dkroeker.gaussiansplatviewer",
+      "versions": [
+        {
+          "appStoreState": "READY_FOR_SALE",
+          "appVersionState": "READY_FOR_DISTRIBUTION",
+          "downloadable": true,
+          "earliestReleaseDate": null,
+          "releaseType": "AFTER_APPROVAL",
+          "versionString": "1.0"
+        }
+      ]
+    }
+  ],
+  "action": "account_probe",
+  "generated_at": "2026-09-15T20:27:02Z",
+  "probes": {
+    "account_apps": {
+      "body": {
+        "data": [
+          {
+            "attributes": {
+              "bundleId": "cloud.dkroeker.GaussianSplattingViewer",
+              "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT",
+              "name": "Gaussian Splatting Viewer",
+              "primaryLocale": "de-DE",
+              "sku": "dkroeker.gaussiansplatviewer"
+            },
+            "id": "6787153621",
+            "links": {
+              "self": "https://api.appstoreconnect.apple.com/v1/apps/6787153621"
+            },
+            "type": "apps"
+          }
+        ],
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/apps?fields%5Bapps%5D=name%2CbundleId%2Csku%2CprimaryLocale%2CcontentRightsDeclaration&limit=200"
+        },
+        "meta": {
+          "paging": {
+            "limit": 200,
+            "total": 1
+          }
+        }
+      },
+      "http": 200,
+      "path": "/v1/apps?limit=200&fields[apps]=name,bundleId,primaryLocale,sku,contentRightsDeclaration"
+    },
+    "availability_6787153621": {
+      "body": {
+        "data": {
+          "attributes": {
+            "availableInNewTerritories": true
+          },
+          "id": "6787153621",
+          "links": {
+            "self": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621"
+          },
+          "relationships": {
+            "territoryAvailabilities": {
+              "links": {
+                "related": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621/territoryAvailabilities",
+                "self": "https://api.appstoreconnect.apple.com/v2/appAvailabilities/6787153621/relationships/territoryAvailabilities"
+              }
+            }
+          },
+          "type": "appAvailabilities"
+        },
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/apps/6787153621/appAvailabilityV2"
+        }
+      },
+      "http": 200
+    },
+    "versions_6787153621": {
+      "body": {
+        "data": [
+          {
+            "attributes": {
+              "appStoreState": "READY_FOR_SALE",
+              "appVersionState": "READY_FOR_DISTRIBUTION",
+              "createdDate": "2026-07-03T08:29:59-07:00",
+              "downloadable": true,
+              "earliestReleaseDate": null,
+              "releaseType": "AFTER_APPROVAL",
+              "versionString": "1.0"
+            },
+            "id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120",
+            "links": {
+              "self": "https://api.appstoreconnect.apple.com/v1/appStoreVersions/eaf9773f-866e-4ec6-8c50-8bdc12c9d120"
+            },
+            "type": "appStoreVersions"
+          }
+        ],
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/apps/6787153621/appStoreVersions?fields%5BappStoreVersions%5D=downloadable%2CearliestReleaseDate%2CcreatedDate%2CversionString%2CreleaseType%2CappStoreState%2CappVersionState&limit=10"
+        },
+        "meta": {
+          "paging": {
+            "limit": 10,
+            "total": 1
+          }
+        }
+      },
+      "http": 200,
+      "path": "/v1/apps/6787153621/appStoreVersions?limit=10&fields[appStoreVersions]=versionString,appStoreState,appVersionState,releaseType,earliestReleaseDate,createdDate,downloadable"
+    }
+  },
+  "public": {
+    "control_310633997_de": {
+      "http": 200,
+      "resultCount": 1,
+      "results": [
+        {
+          "artistId": 310634000,
+          "bundleId": "net.whatsapp.WhatsApp",
+          "currency": "EUR",
+          "currentVersionReleaseDate": "2026-09-14T03:24:17Z",
+          "formattedPrice": "Gratis",
+          "price": 0.0,
+          "sellerName": "WhatsApp Inc.",
+          "trackId": 310633997,
+          "trackName": "WhatsApp Messenger",
+          "trackViewUrl": "https://apps.apple.com/de/app/whatsapp-messenger/id310633997?uo=4",
+          "version": "26.36.74"
+        }
+      ]
+    },
+    "target_6787153621_de": {
+      "http": 200,
+      "resultCount": 0,
+      "results": []
+    },
+    "target_6787153621_us": {
+      "http": 200,
+      "resultCount": 0,
+      "results": []
+    }
+  },
+  "summary": {
+    "account_app_count": 1,
+    "account_listed_app_ids": [],
+    "account_listed_paid_app_ids": [],
+    "control_ok": true,
+    "h1_refuted_by_live_paid_sibling": false,
+    "target_listed": false
+  }
+}
