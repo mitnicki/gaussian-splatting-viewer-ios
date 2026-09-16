@@ -1,0 +1,295 @@
+{
+  "action": "price_check",
+  "generated_at": "2026-09-16T04:03:23Z",
+  "probes": {
+    "app_infos": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/apps/6787153621/appInfos?include=appInfoLocalizations&fields[appInfoLocalizations]=locale,name,subtitle,privacyPolicyUrl,privacyPolicyText"
+    },
+    "app_store_versions": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/apps/6787153621/appStoreVersions?limit=10&fields[appStoreVersions]=versionString,appStoreState,appVersionState,releaseType,earliestReleaseDate,downloadable,createdDate"
+    },
+    "automatic_prices": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appPriceSchedules/6787153621/automaticPrices?limit=200&include=appPricePoint,territory&fields[appPricePoints]=customerPrice,proceeds"
+    },
+    "manual_prices": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appPriceSchedules/6787153621/manualPrices?limit=200&include=appPricePoint,territory&fields[appPricePoints]=customerPrice,proceeds"
+    },
+    "price_schedule": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appPriceSchedules/6787153621"
+    },
+    "territory_availabilities": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v2/appAvailabilities/6787153621/territoryAvailabilities?limit=200&include=territory"
+    },
+    "version_localizations": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appStoreVersions/eaf9773f-866e-4ec6-8c50-8bdc12c9d120/appStoreVersionLocalizations?limit=50&fields[appStoreVersionLocalizations]=locale,description,keywords,supportUrl,marketingUrl,whatsNew"
+    }
+  },
+  "summary": {
+    "app_info_localizations": [
+      {
+        "locale": "en-US",
+        "name": "Gaussian Splatting Viewer",
+        "privacyPolicyTextPresent": false,
+        "privacyPolicyUrl": "https://blog.kroeker.cloud/privacy/",
+        "subtitle": "Render large splat files"
+      },
+      {
+        "locale": "de-DE",
+        "name": "Gaussian Splatting Viewer",
+        "privacyPolicyTextPresent": false,
+        "privacyPolicyUrl": "https://blog.kroeker.cloud/privacy/",
+        "subtitle": "Gro\u00dfe Splat-Dateien rendern"
+      }
+    ],
+    "automatic_prices": {
+      "entry_count": 174,
+      "included_types": [
+        "appPricePoints",
+        "territories"
+      ],
+      "price_counts": {
+        "1.99 None": 1,
+        "12.9 None": 1,
+        "12.99 None": 2,
+        "14.9 None": 1,
+        "14.99 None": 2,
+        "149.99 None": 2,
+        "1490 None": 1,
+        "14900.0 None": 1,
+        "1790.0 None": 1,
+        "19.9 None": 1,
+        "199.0 None": 1,
+        "2.99 None": 111,
+        "22.0 None": 2,
+        "249.0 None": 1,
+        "29.0 None": 1,
+        "299.0 None": 1,
+        "2990 None": 1,
+        "3.0 None": 1,
+        "3.98 None": 1,
+        "3.99 None": 23,
+        "39.0 None": 2,
+        "4.99 None": 2,
+        "4400 None": 1,
+        "4900.0 None": 1,
+        "500 None": 1,
+        "59.99 None": 1,
+        "59000 None": 1,
+        "69.0 None": 1,
+        "79.0 None": 1,
+        "9.9 None": 1,
+        "9.99 None": 1,
+        "90 None": 1,
+        "900.0 None": 1,
+        "99.0 None": 1,
+        "9900.0 None": 1,
+        "99000 None": 1
+      },
+      "sample_attributes": [
+        {
+          "endDate": null,
+          "manual": false,
+          "startDate": null
+        },
+        {
+          "endDate": null,
+          "manual": false,
+          "startDate": null
+        },
+        {
+          "endDate": null,
+          "manual": false,
+          "startDate": null
+        }
+      ],
+      "sample_entry_ids": [
+        "eyJzIjoiNjc4NzE1MzYyMSIsInQiOiJBRkciLCJwIjoiMTAwMzYiLCJzZCI6MC4wLCJlZCI6MC4wfQ",
+        "eyJzIjoiNjc4NzE1MzYyMSIsInQiOiJBR08iLCJwIjoiMTAwMzYiLCJzZCI6MC4wLCJlZCI6MC4wfQ"
+      ],
+      "territory_count": 174
+    },
+    "eu_trader_status_missing_count": 27,
+    "manual_prices": {
+      "entry_count": 1,
+      "included_types": [
+        "appPricePoints",
+        "territories"
+      ],
+      "price_counts": {
+        "2.99 None": 1
+      },
+      "sample_attributes": [
+        {
+          "endDate": null,
+          "manual": true,
+          "startDate": null
+        }
+      ],
+      "sample_entry_ids": [
+        "eyJzIjoiNjc4NzE1MzYyMSIsInQiOiJERVUiLCJwIjoiMTAwMzYiLCJzZCI6MC4wLCJlZCI6MC4wfQ"
+      ],
+      "territory_count": 1
+    },
+    "price_schedule_root": {
+      "id": "6787153621",
+      "links": {
+        "self": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621"
+      },
+      "relationships": {
+        "automaticPrices": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/automaticPrices",
+            "self": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/relationships/automaticPrices"
+          }
+        },
+        "baseTerritory": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/baseTerritory",
+            "self": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/relationships/baseTerritory"
+          }
+        },
+        "manualPrices": {
+          "links": {
+            "related": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/manualPrices",
+            "self": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6787153621/relationships/manualPrices"
+          }
+        }
+      },
+      "type": "appPriceSchedules"
+    },
+    "territory_count": 175,
+    "territory_detail": {
+      "AUT": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "TRADER_STATUS_NOT_PROVIDED",
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "TRADER_STATUS_NOT_PROVIDED",
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "DEU": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "TRADER_STATUS_NOT_PROVIDED",
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "TRADER_STATUS_NOT_PROVIDED",
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "GBR": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "USA": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      }
+    },
+    "territory_release_dates": [
+      "None"
+    ],
+    "territory_status_counts": {
+      "AVAILABLE_FOR_SALE_UNRELEASED_APP": 175,
+      "CANNOT_SELL": 175,
+      "TRADER_STATUS_NOT_PROVIDED": 27
+    },
+    "version_localizations": [
+      {
+        "hasDescription": true,
+        "hasKeywords": true,
+        "hasWhatsNew": false,
+        "locale": "de-DE",
+        "marketingUrl": null,
+        "supportUrl": "https://github.com/mitnicki/gaussian-splatting-viewer-ios"
+      },
+      {
+        "hasDescription": true,
+        "hasKeywords": true,
+        "hasWhatsNew": false,
+        "locale": "en-US",
+        "marketingUrl": null,
+        "supportUrl": "https://github.com/mitnicki/gaussian-splatting-viewer-ios"
+      }
+    ],
+    "versions": [
+      {
+        "appStoreState": "READY_FOR_SALE",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "downloadable": true,
+        "earliestReleaseDate": null,
+        "id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120",
+        "releaseType": "AFTER_APPROVAL",
+        "versionString": "1.0"
+      }
+    ]
+  }
+}
