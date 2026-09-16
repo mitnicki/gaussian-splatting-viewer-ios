@@ -1,0 +1,66 @@
+{
+  "action": "release_v1",
+  "generated_at": "2026-09-16T04:06:10Z",
+  "probes": {
+    "app_store_versions": {
+      "error_codes": null,
+      "http": 200
+    },
+    "apps_by_bundle_id": {
+      "error_codes": null,
+      "http": 200
+    },
+    "release_request": {
+      "data": null,
+      "error_codes": [
+        {
+          "code": "ENTITY_ERROR.RELATIONSHIP.INVALID.INVALID_STATE",
+          "detail": "You cannot send the latest version of the App live in the current state.",
+          "title": "A relationship value is not acceptable for the current resource state."
+        }
+      ],
+      "http": 409
+    },
+    "version_build": {
+      "build": "187",
+      "expired": false,
+      "http": 200,
+      "processingState": "VALID"
+    }
+  },
+  "summary": {
+    "action": "release-request-rejected",
+    "post_state": {
+      "appStoreState": "READY_FOR_SALE",
+      "appVersionState": "READY_FOR_DISTRIBUTION",
+      "build": "187",
+      "build_processing": "VALID",
+      "downloadable": true,
+      "earliestReleaseDate": null,
+      "releaseType": "AFTER_APPROVAL",
+      "version": "1.0",
+      "version_id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120"
+    },
+    "pre_state": {
+      "appStoreState": "READY_FOR_SALE",
+      "appVersionState": "READY_FOR_DISTRIBUTION",
+      "build": "187",
+      "build_processing": "VALID",
+      "downloadable": true,
+      "earliestReleaseDate": null,
+      "releaseType": "AFTER_APPROVAL",
+      "version": "1.0",
+      "version_id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120"
+    },
+    "public_after": {
+      "first": null,
+      "http": 200,
+      "resultCount": 0
+    },
+    "public_before": {
+      "first": null,
+      "http": 200,
+      "resultCount": 0
+    }
+  }
+}
