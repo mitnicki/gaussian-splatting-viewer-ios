@@ -9,7 +9,7 @@ on:
         type: string
         default: ""
       action:
-        description: "Action: inspect (read-only), account_probe (read-only), price_check (read-only), verify_listing (public storefront, read-only), enable_availability (guarded, idempotent), configure (metadata+screenshots) or submit_review"
+        description: "Action: inspect (read-only), account_probe (read-only), price_check (read-only), release_v1 (guarded release request for the approved v1.0), verify_listing (public storefront, read-only), enable_availability (guarded, idempotent), configure (metadata+screenshots) or submit_review"
         required: true
         type: choice
         default: "inspect"
@@ -17,6 +17,7 @@ on:
           - inspect
           - account_probe
           - price_check
+          - release_v1
           - verify_listing
           - enable_availability
           - configure
@@ -67,6 +68,14 @@ jobs:
         env:
           VERIFY_APP_STORE_ID: ${{ github.event.inputs.app_id }}
 
+      - name: Guarded release request for the approved v1.0 (release_v1)
+        if: ${{ github.event.inputs.action == 'release_v1' }}
+        run: python3 scripts/release_v1_release_request.py --confirm release-v1.0
+        env:
+          ASC_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
+
       - name: Enable App Availability for the approved v1.0 release
         id: enable_availability
         if: ${{ github.event.inputs.action == 'enable_availability' }}
@@ -77,7 +86,7 @@ jobs:
           ASC_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_P8_CONTENTS }}
 
       - name: Publish evidence on a dedicated branch
-        if: ${{ always() && contains(fromJSON('["inspect","account_probe","price_check","verify_listing","enable_availability"]'), github.event.inputs.action) }}
+        if: ${{ always() && contains(fromJSON('["inspect","account_probe","price_check","release_v1","verify_listing","enable_availability"]'), github.event.inputs.action) }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -90,6 +99,9 @@ jobs:
           if [ "${{ github.event.inputs.action }}" = "price_check" ]; then
             cp out/asc-inspection.json evidence/asc-price-check.json
             git add evidence/asc-price-check.json
+          elif [ "${{ github.event.inputs.action }}" = "release_v1" ]; then
+            cp out/asc-inspection.json evidence/asc-release-v1.json
+            git add evidence/asc-release-v1.json
           else
             cp out/asc-inspection.json evidence/asc-inspection.json
             git add evidence/asc-inspection.json
