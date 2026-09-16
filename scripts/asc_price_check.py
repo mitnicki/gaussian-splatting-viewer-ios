@@ -142,14 +142,16 @@ def main():
 
     # 1. Price schedule root + explicit price-point include so the authorized
     #    price can be read in a single call (no /v2/appPrices follow-up).
-    probe("price_schedule", f"/v1/appPriceSchedules/{APP_STORE_ID}")
+    schedule_http, schedule_body = probe("price_schedule", f"/v1/appPriceSchedules/{APP_STORE_ID}")
+    if schedule_http == 200 and isinstance(schedule_body, dict):
+        result["summary"]["price_schedule_root"] = schedule_body.get("data")
 
     manual_path = (f"/v1/appPriceSchedules/{APP_STORE_ID}/manualPrices?limit=200"
                    "&include=appPricePoint,territory"
-                   "&fields[appPricePoints]=customerPrice,proceeds,currency")
+                   "&fields[appPricePoints]=customerPrice,proceeds")
     automatic_path = (f"/v1/appPriceSchedules/{APP_STORE_ID}/automaticPrices?limit=200"
                       "&include=appPricePoint,territory"
-                      "&fields[appPricePoints]=customerPrice,proceeds,currency")
+                      "&fields[appPricePoints]=customerPrice,proceeds")
 
     manual_http, manual_body = probe("manual_prices", manual_path)
     if manual_http == 200:
