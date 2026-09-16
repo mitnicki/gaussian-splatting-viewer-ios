@@ -1,0 +1,198 @@
+{
+  "action": "price_check",
+  "generated_at": "2026-09-16T04:02:24Z",
+  "probes": {
+    "app_infos": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/apps/6787153621/appInfos?include=appInfoLocalizations&fields[appInfoLocalizations]=locale,name,subtitle,privacyPolicyUrl,privacyPolicyText"
+    },
+    "app_store_versions": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/apps/6787153621/appStoreVersions?limit=10&fields[appStoreVersions]=versionString,appStoreState,appVersionState,releaseType,earliestReleaseDate,downloadable,createdDate"
+    },
+    "automatic_prices": {
+      "body_head": "{\"errors\": [{\"id\": \"0a1fdc2f-c3ad-40cf-8765-d4ba8a3d2149\", \"status\": \"400\", \"code\": \"PARAMETER_ERROR.INVALID\", \"title\": \"A parameter has an invalid value\", \"detail\": \"'currency' is not a valid field name\", \"source\": {\"parameter\": \"fields[appPricePoints]\"}}]}",
+      "error_codes": [
+        "PARAMETER_ERROR.INVALID"
+      ],
+      "http": 400,
+      "path": "/v1/appPriceSchedules/6787153621/automaticPrices?limit=200&include=appPricePoint,territory&fields[appPricePoints]=customerPrice,proceeds,currency"
+    },
+    "manual_prices": {
+      "body_head": "{\"errors\": [{\"id\": \"a6f6834e-1c0e-445e-93f1-3ffc0caac030\", \"status\": \"400\", \"code\": \"PARAMETER_ERROR.INVALID\", \"title\": \"A parameter has an invalid value\", \"detail\": \"'currency' is not a valid field name\", \"source\": {\"parameter\": \"fields[appPricePoints]\"}}]}",
+      "error_codes": [
+        "PARAMETER_ERROR.INVALID"
+      ],
+      "http": 400,
+      "path": "/v1/appPriceSchedules/6787153621/manualPrices?limit=200&include=appPricePoint,territory&fields[appPricePoints]=customerPrice,proceeds,currency"
+    },
+    "price_schedule": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appPriceSchedules/6787153621"
+    },
+    "territory_availabilities": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v2/appAvailabilities/6787153621/territoryAvailabilities?limit=200&include=territory"
+    },
+    "version_localizations": {
+      "error_codes": null,
+      "http": 200,
+      "path": "/v1/appStoreVersions/eaf9773f-866e-4ec6-8c50-8bdc12c9d120/appStoreVersionLocalizations?limit=50&fields[appStoreVersionLocalizations]=locale,description,keywords,supportUrl,marketingUrl,whatsNew"
+    }
+  },
+  "summary": {
+    "app_info_localizations": [
+      {
+        "locale": "en-US",
+        "name": "Gaussian Splatting Viewer",
+        "privacyPolicyTextPresent": false,
+        "privacyPolicyUrl": "https://blog.kroeker.cloud/privacy/",
+        "subtitle": "Render large splat files"
+      },
+      {
+        "locale": "de-DE",
+        "name": "Gaussian Splatting Viewer",
+        "privacyPolicyTextPresent": false,
+        "privacyPolicyUrl": "https://blog.kroeker.cloud/privacy/",
+        "subtitle": "Gro\u00dfe Splat-Dateien rendern"
+      }
+    ],
+    "automatic_prices": {
+      "error": [
+        "PARAMETER_ERROR.INVALID"
+      ],
+      "http": 400
+    },
+    "eu_trader_status_missing_count": 27,
+    "manual_prices": {
+      "error": [
+        "PARAMETER_ERROR.INVALID"
+      ],
+      "http": 400
+    },
+    "territory_count": 175,
+    "territory_detail": {
+      "AUT": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "TRADER_STATUS_NOT_PROVIDED",
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "TRADER_STATUS_NOT_PROVIDED",
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "DEU": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "TRADER_STATUS_NOT_PROVIDED",
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "TRADER_STATUS_NOT_PROVIDED",
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "GBR": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      },
+      "USA": {
+        "attributes": {
+          "available": true,
+          "contentStatuses": [
+            "CANNOT_SELL",
+            "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+          ],
+          "preOrderEnabled": false,
+          "preOrderPublishDate": null,
+          "releaseDate": null
+        },
+        "available": true,
+        "contentStatuses": [
+          "CANNOT_SELL",
+          "AVAILABLE_FOR_SALE_UNRELEASED_APP"
+        ],
+        "preOrderEnabled": false,
+        "releaseDate": null
+      }
+    },
+    "territory_release_dates": [
+      "None"
+    ],
+    "territory_status_counts": {
+      "AVAILABLE_FOR_SALE_UNRELEASED_APP": 175,
+      "CANNOT_SELL": 175,
+      "TRADER_STATUS_NOT_PROVIDED": 27
+    },
+    "version_localizations": [
+      {
+        "hasDescription": true,
+        "hasKeywords": true,
+        "hasWhatsNew": false,
+        "locale": "de-DE",
+        "marketingUrl": null,
+        "supportUrl": "https://github.com/mitnicki/gaussian-splatting-viewer-ios"
+      },
+      {
+        "hasDescription": true,
+        "hasKeywords": true,
+        "hasWhatsNew": false,
+        "locale": "en-US",
+        "marketingUrl": null,
+        "supportUrl": "https://github.com/mitnicki/gaussian-splatting-viewer-ios"
+      }
+    ],
+    "versions": [
+      {
+        "appStoreState": "READY_FOR_SALE",
+        "appVersionState": "READY_FOR_DISTRIBUTION",
+        "downloadable": true,
+        "earliestReleaseDate": null,
+        "id": "eaf9773f-866e-4ec6-8c50-8bdc12c9d120",
+        "releaseType": "AFTER_APPROVAL",
+        "versionString": "1.0"
+      }
+    ]
+  }
+}
