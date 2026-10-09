@@ -1,0 +1,304 @@
+{
+  "generated_at": "2026-10-09T13:37:31Z",
+  "probes": {
+    "app_attributes": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "TPRULBKS6R5QYLW77CMZYVUWX4",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621"
+    },
+    "app_infos": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "LCF65X7YKHLUHGWMJQE7CF2ZHY",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/appInfos"
+    },
+    "app_relationships": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "2RBIHCTN2PZOXBEIPCGLJTYDOA",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/relationships/appAvailabilityV2"
+    },
+    "app_store_versions": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "IGFOKKFQNCU4ZF2OIYBBONU6MI",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/appStoreVersions?limit=50"
+    },
+    "app_store_versions_detailed": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "JOUNOTWKMVKQW4ZT67IP2RLU4U",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/appStoreVersions?limit=50&fields[appStoreVersions]=versionString,appStoreState,appVersionState,releaseType,earliestReleaseDate,createdDate,downloadable&include=build"
+    },
+    "app_with_availability_include": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "4BQDCUQX23ERBIFDLXOT3LYQHE",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621?include=appAvailabilityV2"
+    },
+    "apps_by_bundle_id": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "W7AWRD3WWEOCGFXXSHSBGVOYYQ",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps?filter[bundleId]=cloud.dkroeker.GaussianSplattingViewer"
+    },
+    "availability_v2": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "63DGAHLCJKAQBU6FVWJYPQDN2A",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/appAvailabilityV2"
+    },
+    "availability_v2_resource": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "RRJVVYNTLTPDF5GHTABQQ2L2FU",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/appAvailabilities/6787153621"
+    },
+    "builds": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "IWUGSOXGXTCTSS3PKTT4JXSU5Y",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/apps/6787153621/builds?limit=5"
+    },
+    "price_schedule_automatic": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "67UKYREEEFS5YV75APIQRCDO6Q",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/appPriceSchedules/6787153621/automaticPrices?limit=200"
+    },
+    "price_schedule_manual": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "NOHS7IJADY6NPD7VHZN7OQCH5M",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/appPriceSchedules/6787153621/manualPrices?limit=200"
+    },
+    "review_submissions": {
+      "body": {
+        "errors": [
+          {
+            "code": "FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED",
+            "detail": "This request requires an in-effect agreement that has not been signed or has expired.",
+            "id": "4Z3PEU2PLWPTMFROP2Z6VDWOPE",
+            "links": {
+              "see": "/business"
+            },
+            "status": "403",
+            "title": "A required agreement is missing or has expired."
+          }
+        ]
+      },
+      "http": 403,
+      "path": "/v1/reviewSubmissions?filter[app]=6787153621&limit=10"
+    }
+  },
+  "public": {
+    "https://apps.apple.com/app/id6787153621": {
+      "http": 404
+    },
+    "https://apps.apple.com/de/app/id6787153621": {
+      "http": 404
+    },
+    "https://apps.apple.com/us/app/gaussian-splatting-viewer/id6787153621": {
+      "http": 404
+    },
+    "lookup_id_at": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_ch": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_de": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_fr": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_gb": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_nl": {
+      "http": 200,
+      "resultCount": 0
+    },
+    "lookup_id_us": {
+      "http": 200,
+      "resultCount": 0
+    }
+  },
+  "summary": {
+    "asc_app_id": null,
+    "release_blocker": {
+      "price_schedule": {
+        "automatic": {
+          "count": 0,
+          "http": 403,
+          "resolved": [],
+          "sample_ids": []
+        },
+        "manual": {
+          "count": 0,
+          "http": 403,
+          "resolved": [],
+          "sample_ids": []
+        }
+      },
+      "review_submission_items": [],
+      "review_submissions": [],
+      "review_submissions_http": 403
+    },
+    "territory_availability": {
+      "error": "{'errors': [{'id': '7SLEIE434YFMJM5IDNDVMHICYE', 'status': '403', 'code': 'FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED', 'title': 'A required agreement is missing or has expired.', 'detail': 'This request requires an in-effect agreement that has not been signed or has expired.', 'links': {'see': '/business'}}]}",
+      "http": 403
+    }
+  }
+}
